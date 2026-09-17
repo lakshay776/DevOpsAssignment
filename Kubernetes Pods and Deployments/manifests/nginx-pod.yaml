@@ -1,0 +1,18 @@
+# The smallest unit Kubernetes schedules. Nothing restarts this if the node
+# goes away - that is what the ReplicaSet below is for.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+  labels:
+    app: nginx-standalone
+spec:
+  containers:
+    - name: nginx
+      image: nginx:1.27-alpine
+      ports:
+        - containerPort: 80
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi

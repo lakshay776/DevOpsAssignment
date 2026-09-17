@@ -1,0 +1,27 @@
+# A StatefulSet gives each Pod a stable ordinal name (web-0, web-1) instead
+# of a random suffix. Paired with the headless Service below, each Pod gets
+# its own DNS record.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: web
+spec:
+  serviceName: web-headless
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web-sts
+  template:
+    metadata:
+      labels:
+        app: web-sts
+    spec:
+      containers:
+        - name: web
+          image: nginxdemos/hello:plain-text
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi

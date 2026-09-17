@@ -1,0 +1,15 @@
+# LoadBalancer asks the cloud provider for an external IP. kind has no cloud
+# provider, so EXTERNAL-IP stays <pending> forever - that is the expected
+# result here, not a failure, and it is the point of the exercise. On EKS or
+# GKE this same manifest would get a real address.
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-lb
+spec:
+  type: LoadBalancer
+  selector:
+    app: hello-lb
+  ports:
+    - port: 80
+      targetPort: 80

@@ -1,0 +1,10 @@
+# ExternalName has no selector, no endpoints and no proxying. It is a CNAME
+# entry in cluster DNS, so in-cluster clients can use a stable internal name
+# for something that lives outside the cluster.
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-example
+spec:
+  type: ExternalName
+  externalName: example.com

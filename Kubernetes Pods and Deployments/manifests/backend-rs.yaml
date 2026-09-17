@@ -1,0 +1,25 @@
+# A ReplicaSet keeps exactly `replicas` Pods matching the selector alive.
+# Delete one of its Pods and it creates a replacement immediately.
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: backend-rs
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi

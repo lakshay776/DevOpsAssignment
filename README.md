@@ -13,8 +13,17 @@ adds something the text does not.
 | `Docker Fundamentals/` | Six Hello World containers: Node.js, Python, Java, Apache, React, Nginx |
 | `DockerFiles and Images/` | Multi-stage Go build, `scratch` runtime image at ~7 MB |
 | `Docker Networks/` | Multi-network containers, host network, bind mounts, overlay networks |
+| `Kubernetes Fundamentals/` | kind cluster, control-plane components, Pods, namespaces, `--dry-run` |
+| `Kubernetes Pods and Deployments/` | ReplicaSet self-healing, rolling update and rollback, `ImagePullBackOff`, DaemonSet |
+| `Kubernetes Networking and Services/` | ClusterIP, NodePort, LoadBalancer, ExternalName, headless, empty endpoints |
+| `Kubernetes Ingress ConfigMaps and Secrets/` | ingress-nginx, config and secret injection, path-based routing |
 
 Environment: macOS with Docker Desktop; Linux-only commands were run in Ubuntu 24.04 containers.
+The Kubernetes work runs on a local two-node [kind](https://kind.sigs.k8s.io/) cluster defined in
+`Kubernetes Fundamentals/kind-cluster.yaml`.
+
+The Docker and Linux folders record their output as screenshots; the Kubernetes folders record it
+as text transcripts, which stay searchable and diffable.
 
 ## Running the containers
 
@@ -42,6 +51,17 @@ The shell script runs directly:
 ```bash
 ./"Shell Scripting/sysinfo.sh"
 ```
+
+## Running the Kubernetes work
+
+```bash
+kind create cluster --config "Kubernetes Fundamentals/kind-cluster.yaml"
+kubectl apply -f "Kubernetes Pods and Deployments/manifests/"
+```
+
+Host ports 8088 (Ingress), 30080 (NodePort) and 8443 are mapped into the cluster; 8080-8083 were
+left alone because the Docker modules use them. Tear down with
+`kind delete cluster --name devops-hw`.
 
 ## Implementation notes
 

@@ -1,0 +1,14 @@
+# clusterIP: None is what makes this headless. Instead of one virtual IP,
+# DNS returns the Pod IPs directly, and each Pod also gets its own record
+# at <pod>.<service>.<namespace>.svc.cluster.local.
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-headless
+spec:
+  clusterIP: None
+  selector:
+    app: web-sts
+  ports:
+    - port: 80
+      targetPort: 80

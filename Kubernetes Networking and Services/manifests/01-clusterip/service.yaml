@@ -1,0 +1,14 @@
+# ClusterIP is the default type: one stable virtual IP inside the cluster,
+# load-balanced across every Pod matching the selector. Not reachable from
+# outside the cluster at all.
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-clusterip
+spec:
+  type: ClusterIP
+  selector:
+    app: hello
+  ports:
+    - port: 80
+      targetPort: 80

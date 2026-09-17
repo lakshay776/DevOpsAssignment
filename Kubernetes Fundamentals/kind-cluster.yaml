@@ -1,0 +1,31 @@
+# A two-node cluster so scheduling across nodes is actually visible.
+# kind runs each node as a Docker container on this machine.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: devops-hw
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      # The ingress-nginx controller used in the Ingress module schedules only
+      # onto a node carrying this label, so it is set here at cluster creation.
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    # Without these, nothing inside the cluster is reachable from the browser.
+    # 8088/8443 are used instead of 80/443 because those need root on macOS,
+    # and instead of 8080/8081 because the Docker modules already use those.
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 8088
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 8443
+        protocol: TCP
+      # NodePort services land on a high port on the node; this maps one
+      # through to the host so the NodePort demo can be curled directly.
+      - containerPort: 30080
+        hostPort: 30080
+        protocol: TCP
+  - role: worker

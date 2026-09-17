@@ -1,0 +1,14 @@
+# NodePort opens the same port on every node. 30080 is pinned rather than
+# left random because kind-cluster.yaml maps exactly that port to the host.
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-nodeport
+spec:
+  type: NodePort
+  selector:
+    app: hello-np
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30080

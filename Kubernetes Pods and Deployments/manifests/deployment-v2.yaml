@@ -1,0 +1,32 @@
+# Version 2 - identical except for the image tag, which is what the rolling
+# update changes. Applying this over v1 triggers the rollout.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Never drop below full capacity while updating, and add at most one
+      # extra Pod at a time, so the rollout is visible step by step.
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi

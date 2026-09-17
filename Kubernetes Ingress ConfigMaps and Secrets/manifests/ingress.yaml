@@ -1,0 +1,31 @@
+# One entry point, routed by path. Without an Ingress each Service would
+# need its own NodePort or LoadBalancer; this puts both behind port 8088.
+#
+#   http://localhost:8088/        -> frontend-svc
+#   http://localhost:8088/api     -> backend-svc
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app-ingress
+  annotations:
+    # Strips the /api prefix before forwarding, so the backend sees "/".
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: backend-svc
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-svc
+                port:
+                  number: 80

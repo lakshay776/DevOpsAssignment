@@ -1,0 +1,47 @@
+# Pulls two single keys out of the ConfigMap instead of importing everything,
+# which is the other way to wire configuration in.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: nginxdemos/hello:plain-text
+          ports:
+            - containerPort: 80
+          env:
+            - name: APP_GREETING
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: APP_GREETING
+            - name: BACKEND_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: BACKEND_URL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-svc
+spec:
+  selector:
+    app: frontend
+  ports:
+    - port: 80
+      targetPort: 80

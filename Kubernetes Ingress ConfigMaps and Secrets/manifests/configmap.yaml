@@ -1,0 +1,10 @@
+# Non-secret configuration, kept out of the image so the same image can run
+# in any environment. Values land in the Pods as environment variables.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  APP_ENV: "development"
+  APP_GREETING: "Hello from the ConfigMap"
+  BACKEND_URL: "http://backend-svc"

@@ -1,0 +1,15 @@
+# A throwaway shell inside the cluster, used to prove the Service name
+# resolves through CoreDNS and that traffic reaches different Pods.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: client
+spec:
+  containers:
+    - name: client
+      image: curlimages/curl:8.10.1
+      command: ["sleep", "3600"]
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi

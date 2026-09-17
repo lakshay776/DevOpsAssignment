@@ -1,0 +1,32 @@
+# Version 1. A Deployment owns a ReplicaSet, which owns the Pods; that extra
+# layer is what makes rolling updates and rollbacks possible.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Never drop below full capacity while updating, and add at most one
+      # extra Pod at a time, so the rollout is visible step by step.
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.25-alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi

@@ -1,0 +1,25 @@
+# Three Pods serving a page that names the Pod, so round-robining across
+# them is visible in the curl output.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: hello
+  template:
+    metadata:
+      labels:
+        app: hello
+    spec:
+      containers:
+        - name: hello
+          image: nginxdemos/hello:plain-text
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi

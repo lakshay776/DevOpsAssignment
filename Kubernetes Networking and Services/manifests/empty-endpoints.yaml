@@ -1,0 +1,16 @@
+# Troubleshooting case: the selector says app=typo-nothing-has-this-label,
+# which no Pod carries. The Service is created happily and gets a ClusterIP,
+# but `kubectl get endpoints` shows <none> and every request times out.
+# A selector that matches nothing is the usual cause of a Service that
+# "exists but does not work".
+apiVersion: v1
+kind: Service
+metadata:
+  name: broken-endpoints
+spec:
+  type: ClusterIP
+  selector:
+    app: typo-nothing-has-this-label
+  ports:
+    - port: 80
+      targetPort: 80
