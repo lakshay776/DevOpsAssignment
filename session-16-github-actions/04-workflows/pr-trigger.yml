@@ -1,0 +1,21 @@
+name: Pull Request Trigger Example
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+
+jobs:
+  validate-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR metadata
+        # head_ref is the PR author's branch name (untrusted), so pass it via env
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          echo "PR #${PR_NUMBER} targeting ${BASE_REF}"
+          echo "Source branch: ${HEAD_REF}"

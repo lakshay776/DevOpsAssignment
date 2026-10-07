@@ -1,0 +1,19 @@
+name: Path Filter Example
+
+on:
+  push:
+    # GitHub rejects 'paths' and 'paths-ignore' on the same event,
+    # so the ignored paths are written as '!' negations instead.
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'Dockerfile'
+      - '!docs/**'
+      - '!**.md'
+
+jobs:
+  selective-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Triggered by code changes
+        run: echo "Code paths modified. Running build and test suite."
