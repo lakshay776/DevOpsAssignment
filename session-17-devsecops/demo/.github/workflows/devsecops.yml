@@ -1,0 +1,292 @@
+name: Python DevSecOps Pipeline
+
+# When does this pipeline run?
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+# Least privilege by default; jobs that need more ask for it.
+permissions:
+  contents: read
+
+env:
+  LOCAL_IMAGE: session17-python:${{ github.sha }}
+
+jobs:
+
+  # ========================================
+  # STEP 1 — Run Unit Tests
+  # ========================================
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: |
+          pytest --cov=app --cov-report=term-missing
+
+
+  # ========================================
+  # STEP 2 — SAST (Find code security issues)
+  # ========================================
+
+  sast:
+    name: SAST - CodeQL
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+
+      - name: Analyze code
+        uses: github/codeql-action/analyze@v3
+
+  # CodeQL uploads results to the Security tab but does not fail the job on
+  # findings. Bandit is a second, blocking SAST check.
+  sast-bandit:
+    name: SAST - Bandit (gate)
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run Bandit (fail on MEDIUM and above)
+        run: |
+          pip install bandit
+          bandit -r app --severity-level medium
+
+
+  # ========================================
+  # STEP 3 — SCA (Check for vulnerable packages)
+  # ========================================
+
+  sca:
+    name: SCA - Dependency Scan
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pip-audit
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-audit
+
+      # Audit the declared dependencies (runtime + dev) rather than whatever
+      # happens to be installed on the runner.
+      - name: Run dependency scan
+        run: |
+          pip-audit -r requirements-dev.txt
+
+
+  # ========================================
+  # STEP 4 — Build Docker Image
+  #          (only runs after steps 1, 2, 3 pass)
+  # ========================================
+
+  docker-build:
+    name: Docker Build
+    needs:
+      - test
+      - sast
+      - sast-bandit
+      - sca
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -t "$LOCAL_IMAGE" .
+          docker save "$LOCAL_IMAGE" -o image.tar
+
+      # Hand the exact image to the next jobs, so the image that is scanned
+      # is the image that is pushed (instead of rebuilding it every job).
+      - name: Upload image
+        uses: actions/upload-artifact@v4
+        with:
+          name: image
+          path: image.tar
+          retention-days: 1
+
+
+  # ========================================
+  # STEP 5 — Scan Docker Image for vulnerabilities (security gate)
+  # ========================================
+
+  image-scan:
+    name: Image Scan - Trivy
+    needs:
+      - docker-build
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Download image
+        uses: actions/download-artifact@v4
+        with:
+          name: image
+
+      - name: Load image
+        run: docker load -i image.tar
+
+      - name: Install Trivy
+        run: |
+          sudo apt-get install -y wget gnupg
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key \
+            | sudo gpg --dearmor -o /usr/share/keyrings/trivy.gpg
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" \
+            | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update && sudo apt-get install -y trivy
+
+      # --exit-code 1 turns the scan into a gate: any HIGH/CRITICAL finding
+      # fails this job, and everything that `needs` it is skipped.
+      - name: Scan image
+        run: |
+          trivy image --severity HIGH,CRITICAL --exit-code 1 "$LOCAL_IMAGE"
+
+
+  # ========================================
+  # STEP 6 — Push image to GitHub Container Registry
+  #          (only after the gates pass, only on push to main)
+  # ========================================
+
+  push:
+    name: Push Image to GHCR
+    needs:
+      - image-scan
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+
+      - name: Download image
+        uses: actions/download-artifact@v4
+        with:
+          name: image
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # GHCR image names must be lowercase.
+      - name: Tag and push the scanned image
+        run: |
+          docker load -i image.tar
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          docker tag "$LOCAL_IMAGE" "$IMAGE:${GITHUB_SHA}"
+          docker tag "$LOCAL_IMAGE" "$IMAGE:latest"
+          docker push "$IMAGE:${GITHUB_SHA}"
+          docker push "$IMAGE:latest"
+
+
+  # ========================================
+  # STEP 7 — Deploy to Kubernetes
+  #          (only runs after the image is published)
+  # ========================================
+
+  deploy:
+    name: Deploy to Kubernetes
+    needs:
+      - push
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create k8s Kind Cluster (For testing deployment)
+        uses: helm/kind-action@v1.10.0
+
+      # The kind cluster is a throwaway test cluster inside the runner. The
+      # image is loaded into it directly, so this also works while the GHCR
+      # package is still private (new packages are private by default).
+      - name: Download image
+        uses: actions/download-artifact@v4
+        with:
+          name: image
+
+      - name: Load image into kind
+        run: |
+          docker load -i image.tar
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_SHA}"
+          docker tag "$LOCAL_IMAGE" "$IMAGE"
+          kind load docker-image "$IMAGE" --name chart-testing
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Deploy to Kubernetes
+        run: |
+          sed "s|__IMAGE__|${IMAGE}|g" k8s/deployment.yaml | kubectl apply -f -
+          kubectl apply -f k8s/service.yaml
+
+      - name: Check rollout status
+        run: |
+          kubectl rollout status deployment/session17-python --timeout=120s
+          kubectl get pods -o wide
+
+      - name: Test running website in CI (Curl)
+        run: |
+          # Forward the service port to the GitHub runner in the background
+          kubectl port-forward service/session17-python 5001:80 &
+          sleep 3
+
+          echo "🌐 Fetching the website HTML..."
+          curl -s http://localhost:5001 | head -n 15
+
+          echo -e "\n\n🌐 Fetching the API status..."
+          curl -sf http://localhost:5001/api/status
