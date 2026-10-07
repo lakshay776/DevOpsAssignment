@@ -17,6 +17,9 @@ adds something the text does not.
 | `Kubernetes Pods and Deployments/` | ReplicaSet self-healing, rolling update and rollback, `ImagePullBackOff`, DaemonSet |
 | `Kubernetes Networking and Services/` | ClusterIP, NodePort, LoadBalancer, ExternalName, headless, empty endpoints |
 | `Kubernetes Ingress ConfigMaps and Secrets/` | ingress-nginx, config and secret injection, path-based routing |
+| `session19-cloud-terraform/` | Session 19: cloud basics (IaaS/PaaS/SaaS, regions/AZs, VPC, subnets, route tables, IGW, security groups) and a Terraform VPC + EC2 + S3 mini project |
+| `session20-monitoring-observability-gitops/` | Session 20: Prometheus, Grafana, GitOps and Argo CD on kind |
+| `session21-python/` | Session 21 capstone: TaskBoard (FastAPI + React + Postgres) through pytest, Compose, Trivy, Terraform, Helm, Ingress, HPA, Prometheus/Grafana |
 
 Environment: macOS with Docker Desktop; Linux-only commands were run in Ubuntu 24.04 containers.
 The Kubernetes work runs on a local two-node [kind](https://kind.sigs.k8s.io/) cluster defined in
