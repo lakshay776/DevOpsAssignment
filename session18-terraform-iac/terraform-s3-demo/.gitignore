@@ -1,0 +1,25 @@
+# Terraform working directory
+.terraform/
+# Terraform state
+*.tfstate
+*.tfstate.*
+# Terraform plans
+*.tfplan
+tfplan
+# Crash logs
+crash.log
+crash.*.log
+# Variable files
+*.tfvars
+!terraform.tfvars.example
+# Terraform override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+# ...except the LocalStack override used for this coursework run
+!localstack_override.tf
+# IDE files
+.idea/
+.vscode/
+.DS_Store
