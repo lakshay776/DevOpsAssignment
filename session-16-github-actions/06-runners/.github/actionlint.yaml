@@ -1,0 +1,4 @@
+# Custom labels used by self-hosted runners in this module (for actionlint)
+self-hosted-runner:
+  labels:
+    - gpu
