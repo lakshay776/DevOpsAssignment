@@ -1,0 +1,11 @@
+# Section 6 of the README: reading Chart.yaml fields from a template.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-chart-info
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    app-version: "{{ .Chart.AppVersion }}"
+data:
+  description: {{ .Chart.Description | quote }}
+  home: {{ .Chart.Home | quote }}
