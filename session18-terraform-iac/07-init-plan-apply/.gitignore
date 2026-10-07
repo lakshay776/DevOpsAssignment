@@ -1,0 +1,7 @@
+.terraform/
+terraform.tfstate
+terraform.tfstate.*
+*.tfplan
+# the README saves its plan as "tfplan" (no extension)
+tfplan
+crash.log
