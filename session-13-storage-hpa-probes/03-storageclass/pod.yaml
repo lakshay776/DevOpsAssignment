@@ -1,0 +1,18 @@
+# Added for kind (not in the course): kind's default StorageClass uses
+# volumeBindingMode: WaitForFirstConsumer, so dynamic-pvc stays Pending until a
+# Pod actually uses it. Apply this after pvc.yaml to trigger provisioning.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dynamic-pvc-consumer
+spec:
+  containers:
+    - name: app
+      image: nginx:1.27
+      volumeMounts:
+        - name: dynamic-storage
+          mountPath: /data
+  volumes:
+    - name: dynamic-storage
+      persistentVolumeClaim:
+        claimName: dynamic-pvc
