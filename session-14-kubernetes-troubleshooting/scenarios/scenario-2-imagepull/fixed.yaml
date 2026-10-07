@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fail-2-imagepull-pod
+  labels:
+    tier: triage-gauntlet
+    scenario: imagepull
+spec:
+  containers:
+    - name: web-app
+      # FIX: "yatri-api-service:v999-invalid-tag-does-not-exist" does not exist on Docker Hub
+      # (pull access denied / repository does not exist). Point at an image that exists.
+      # nginx:alpine stands in for the web app; with a private registry you would use its
+      # full path, e.g. <registry>/<org>/yatri-api-service:<real-tag>, plus imagePullSecrets.
+      image: nginx:alpine
+      ports:
+        - containerPort: 80

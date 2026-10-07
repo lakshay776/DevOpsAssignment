@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fail-1-crashloop-pod
+  labels:
+    tier: triage-gauntlet
+    scenario: crashloop
+spec:
+  containers:
+    - name: python-app
+      image: python:3.11-alpine
+      # FIX 1: provide the environment variable the app requires.
+      env:
+        - name: DATABASE_URL
+          value: "postgresql://app@postgres-db.production.svc.cluster.local:5432/app"
+      command:
+        - "python3"
+        - "-c"
+        - |
+          import os, sys, time
+          db_url = os.environ.get("DATABASE_URL")
+          if not db_url:
+              print("[FATAL ERROR]: DATABASE_URL environment variable is MISSING!", file=sys.stderr)
+              sys.exit(1)
+          print("Application started successfully!", flush=True)
+          # FIX 2: a Pod's default restartPolicy is Always, so a process that exits 0
+          # is also restarted (and ends up in CrashLoopBackOff again). Keep the
+          # "service" running like a real long-lived app would.
+          while True:
+              time.sleep(3600)

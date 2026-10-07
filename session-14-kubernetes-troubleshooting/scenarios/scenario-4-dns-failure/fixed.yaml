@@ -1,0 +1,76 @@
+# FIX for scenario 4.
+# Root cause: the client called postgres-db-wrong-name.production.svc.cluster.local.
+# No Service of that name exists (and the cluster had no "production" namespace and no
+# database at all), so CoreDNS answered NXDOMAIN and curl failed with "Could not resolve host".
+# The curl output was hidden by "-s ... || true", so the pod still looked Running/healthy.
+#
+# The fix has two parts:
+#   1. Make sure the thing being called exists: a postgres-db Service in namespace production.
+#   2. Call it by its real DNS name: <service>.<namespace>.svc.cluster.local
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: production
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-db
+  namespace: production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-db
+  template:
+    metadata:
+      labels:
+        app: postgres-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - name: POSTGRES_PASSWORD
+              value: "lab-only-password"   # demo value for a throwaway lab cluster
+          ports:
+            - containerPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-db
+  namespace: production
+spec:
+  selector:
+    app: postgres-db
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fail-4-dns-failure-pod
+  labels:
+    tier: triage-gauntlet
+    scenario: dns-failure
+spec:
+  containers:
+    - name: client
+      image: curlimages/curl:8.6.0
+      command: ["sh", "-c"]
+      args:
+        - |
+          DB_HOST=postgres-db.production.svc.cluster.local
+          echo "Attempting connection to internal database...";
+          # Postgres does not speak HTTP, so test the TCP port with nc instead of curl,
+          # and print the result instead of hiding it.
+          until nc -z -w 3 "$DB_HOST" 5432; do
+            echo "Database $DB_HOST:5432 not reachable yet, retrying in 2s";
+            sleep 2;
+          done
+          echo "Database reachable at $DB_HOST:5432";
+          echo "Process sleeping...";
+          sleep 3600
