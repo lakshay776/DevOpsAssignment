@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: student-pvc
+spec:
+  # "" = no StorageClass: bind to the pre-created student-pv instead of letting the
+  # cluster's default StorageClass (kind/minikube "standard") provision a new volume.
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi
