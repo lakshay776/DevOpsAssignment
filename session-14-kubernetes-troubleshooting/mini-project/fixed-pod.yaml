@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+
+metadata:
+  name: project-broken-pod
+
+spec:
+  containers:
+    - name: app
+      # Fix: the tag "this-tag-does-not-exist" does not exist on Docker Hub; use a real nginx tag.
+      image: nginx:1.27
