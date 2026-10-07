@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "taskboard.fullname" . }}-backend
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels: {app: taskboard-backend}
+  template:
+    metadata:
+      labels: {app: taskboard-backend}
+    spec:
+      # The container runs Alembic migrations on start, so hold it until Postgres accepts connections.
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16-alpine
+          command: ["sh", "-c", "until pg_isready -h {{ .Values.postgres.host }} -p 5432; do echo waiting for postgres; sleep 2; done"]
+      containers:
+        - name: backend
+          image: "{{ .Values.backend.image }}:{{ .Values.backend.tag }}"
+          ports: [{containerPort: 8000}]
+          env:
+            - name: DATABASE_URL
+              value: "postgresql+psycopg://{{ .Values.postgres.username }}:{{ .Values.postgres.password }}@{{ .Values.postgres.host }}:5432/{{ .Values.postgres.database }}"
+          readinessProbe:
+            httpGet: {path: /ready, port: 8000}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: 8000}
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+{{ toYaml .Values.resources | indent 12 }}

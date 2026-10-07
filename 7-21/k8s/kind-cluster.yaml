@@ -1,0 +1,17 @@
+# Local stand-in for the EKS cluster: one control-plane node that runs the ingress
+# controller, plus one worker. Ingress is reachable on localhost:8088.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: taskboard
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      - {containerPort: 80, hostPort: 8088, protocol: TCP}
+      - {containerPort: 443, hostPort: 8443, protocol: TCP}
+  - role: worker

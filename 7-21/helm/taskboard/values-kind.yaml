@@ -1,0 +1,8 @@
+# Images built locally and loaded into kind with `kind load docker-image`,
+# in place of the GHCR images the CI pipeline pushes.
+frontend:
+  image: taskboard-frontend
+  tag: local
+backend:
+  image: taskboard-backend
+  tag: local
