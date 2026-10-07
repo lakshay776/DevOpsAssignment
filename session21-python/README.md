@@ -234,7 +234,7 @@ endpoints appear and `/health` answers through the Service.
   to EKS.
 - **GitHub Actions, the GHCR push, and the Helm deploy from CI.** The workflow is at
   `.github/workflows/ci-cd.yml`, but GitHub only runs workflows from the repository root. Inside
-  this coursework repo, `7-21/.github/` is never triggered. To see it run, push this folder as its
+  this coursework repo, `session21-python/.github/` is never triggered. To see it run, push this folder as its
   own repository and add a `KUBE_CONFIG_DATA` secret for the deploy job. Every step the pipeline
   runs (pytest, frontend build, both Docker builds, both Trivy scans, `helm upgrade --install`)
   was run by hand above.
