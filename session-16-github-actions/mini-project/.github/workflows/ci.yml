@@ -1,0 +1,96 @@
+name: Mini Project CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install flake8
+        run: pip install flake8==7.1.1
+
+      - name: Run flake8
+        run: flake8 app/ tests/
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests with coverage
+        run: |
+          python -m pytest -v tests/ \
+            --junitxml=test-results/results.xml \
+            --cov=app --cov-report=term-missing
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results/
+          retention-days: 7
+
+  security-check:
+    name: Security Check
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Look for committed secrets files
+        run: |
+          found=$(find . -path ./.git -prune -o -type f \
+            \( -name '.env' -o -name '*.pem' -o -name '*.key' \) -print)
+          if [ -n "$found" ]; then
+            echo "Sensitive files committed:"
+            echo "$found"
+            exit 1
+          fi
+          echo "No .env, *.pem or *.key files found"
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [test, security-check]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build package
+        run: ./build.sh
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: calculator-build
+          path: build/
+          retention-days: 7
