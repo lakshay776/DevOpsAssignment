@@ -352,6 +352,17 @@ Destroy complete! Resources: 15 destroyed.
 
 ![terraform apply and cluster](screenshots/14-terraform-apply-eks.png)
 
+The same resources in the AWS console, region Europe (Stockholm):
+
+![AWS console, VPC](screenshots/21-aws-console-vpc.png)
+
+`campusdesk-vpc`, `10.0.0.0/16`, Available — and the resource map showing both public subnets,
+one in `eu-north-1a` and one in `eu-north-1b`, behind a shared route table.
+
+![AWS console, EKS cluster](screenshots/22-aws-console-eks.png)
+
+`campusdesk-eks`, Active, Kubernetes 1.31, one managed node group.
+
 ![terraform destroy](screenshots/15-terraform-destroy.png)
 
 Full output in [`evidence/m7-terraform-eks.txt`](evidence/m7-terraform-eks.txt) and
