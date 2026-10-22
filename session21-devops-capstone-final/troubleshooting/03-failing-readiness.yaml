@@ -1,0 +1,42 @@
+# Lab 3: a container that runs fine but never becomes Ready.
+#
+# Apply it, then:
+#   kubectl get pods -n campusdesk -l app=bad-probe     # 0/1 Running
+#   kubectl describe pod -n campusdesk -l app=bad-probe | tail -15
+#
+# Expected: STATUS is Running but READY stays 0/1, and the events show
+# "Readiness probe failed: HTTP probe failed with statuscode: 404".
+#
+# The lesson is that Running is not Ready. The container started, so logs
+# look healthy, but the probe points at a path the app does not serve, so
+# Kubernetes keeps the Pod out of the Service and traffic never arrives.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bad-probe
+  namespace: campusdesk
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bad-probe
+  template:
+    metadata:
+      labels:
+        app: bad-probe
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /this-path-does-not-exist
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi

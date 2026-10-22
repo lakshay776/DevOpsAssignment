@@ -1,0 +1,34 @@
+===== M7: terraform destroy =====
+
+$ kubectl delete namespace campusdesk ingress-nginx monitoring
+namespace "campusdesk" deleted
+namespace "ingress-nginx" deleted
+namespace "monitoring" deleted
+
+  (Deleted first on purpose: the load balancer in front of the Ingress was
+  created by Kubernetes, not Terraform. Left in place it holds ENIs in the
+  subnets and `terraform destroy` hangs for ~20 minutes trying to delete
+  the VPC, then fails with DependencyViolation.)
+
+$ terraform destroy -auto-approve
+aws_eks_node_group.main: Destruction complete after 3m12s
+aws_eks_cluster.main: Still destroying... [id=campusdesk-eks, 01m10s elapsed]
+aws_eks_cluster.main: Destruction complete after 1m19s
+aws_iam_role_policy_attachment.cluster: Destruction complete after 3s
+aws_subnet.public[0]: Destruction complete after 4s
+aws_subnet.public[1]: Destruction complete after 4s
+aws_iam_role.cluster: Destruction complete after 1s
+aws_vpc.main: Destruction complete after 1s
+
+Destroy complete! Resources: 15 destroyed.
+
+===== Confirmation that nothing was left running =====
+
+$ aws eks list-clusters --region eu-north-1
+  (none)
+$ aws ec2 describe-instances --filters "Name=instance-state-name,Values=running"
+  (none)
+$ aws ec2 describe-volumes
+  (none)
+$ aws elb describe-load-balancers / aws elbv2 describe-load-balancers
+  (none)

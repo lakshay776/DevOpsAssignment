@@ -1,0 +1,32 @@
+===== M9: Prometheus + Grafana =====
+$ kubectl get pods -n monitoring
+NAME                                                   READY   STATUS    RESTARTS   AGE
+monitoring-grafana-56f5bfcfd7-tl47j                    3/3     Running   0          8m44s
+monitoring-kube-prometheus-operator-84886b6549-w8clg   1/1     Running   0          20m
+monitoring-kube-state-metrics-75d7ddcc9c-qgqxq         1/1     Running   0          20m
+monitoring-prometheus-node-exporter-fh98s              1/1     Running   0          20m
+monitoring-prometheus-node-exporter-ggs9x              1/1     Running   0          20m
+monitoring-prometheus-node-exporter-j985l              1/1     Running   0          9m42s
+prometheus-monitoring-kube-prometheus-prometheus-0     2/2     Running   0          20m
+
+--- Prometheus scrape targets for campusdesk ---
+  pod=campusdesk-backend-7d9c5b6d86-s5dtf  health=up  scrapeUrl=http://10.0.0.67:8000/metrics
+  pod=campusdesk-backend-7d9c5b6d86-d4wg4  health=up  scrapeUrl=http://10.0.1.52:8000/metrics
+
+--- live domain metrics from Prometheus ---
+  query: campusdesk_issues_open
+    low = 2
+    medium = 2
+    high = 1
+    urgent = 2
+    low = 2
+    medium = 2
+    high = 1
+    urgent = 1
+  query: sum(campusdesk_issues_created_total)
+    value = 7
+  query: sum(up{job=\"campusdesk-backend\"})
+
+--- Grafana ---
+$ curl -u admin:*** http://grafana/api/search?query=CampusDesk
+  dashboard 'CampusDesk' uid=campusdesk url=/d/campusdesk/campusdesk

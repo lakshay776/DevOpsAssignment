@@ -1,0 +1,26 @@
+===== M7: Terraform / AWS =====
+$ terraform output
+cluster_endpoint = "https://1223FE2FB2DA9A58974A452BD0CCDCA4.gr7.eu-north-1.eks.amazonaws.com"
+cluster_name = "campusdesk-eks"
+kubeconfig_command = "aws eks update-kubeconfig --name campusdesk-eks --region eu-north-1"
+public_subnet_ids = [
+  "subnet-0bc508ac6f2a170e2",
+  "subnet-06c00fe058b01feb6",
+]
+vpc_id = "vpc-062c859f80be09940"
+
+$ aws eks describe-cluster --name campusdesk-eks
+-------------------------------------------------------------------------------------------
+|                                     DescribeCluster                                     |
++----------+------------------------------------------------------------------------------+
+|  endpoint|  https://1223FE2FB2DA9A58974A452BD0CCDCA4.gr7.eu-north-1.eks.amazonaws.com   |
+|  name    |  campusdesk-eks                                                              |
+|  status  |  ACTIVE                                                                      |
+|  version |  1.31                                                                        |
++----------+------------------------------------------------------------------------------+
+
+$ kubectl get nodes -o wide
+NAME                                        STATUS   ROLES    AGE     VERSION                INTERNAL-IP   EXTERNAL-IP     OS-IMAGE                        KERNEL-VERSION                    CONTAINER-RUNTIME
+ip-10-0-0-78.eu-north-1.compute.internal    Ready    <none>   135m    v1.31.14-eks-b9510e3   10.0.0.78     13.60.213.26    Amazon Linux 2023.12.20261012   6.1.188-233.393.amzn2023.x86_64   containerd://2.3.5+unknown
+ip-10-0-1-152.eu-north-1.compute.internal   Ready    <none>   8m55s   v1.31.14-eks-b9510e3   10.0.1.152    16.171.8.43     Amazon Linux 2023.12.20261012   6.1.188-233.393.amzn2023.x86_64   containerd://2.3.5+unknown
+ip-10-0-1-93.eu-north-1.compute.internal    Ready    <none>   135m    v1.31.14-eks-b9510e3   10.0.1.93     51.20.191.105   Amazon Linux 2023.12.20261012   6.1.188-233.393.amzn2023.x86_64   containerd://2.3.5+unknown

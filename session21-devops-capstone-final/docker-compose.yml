@@ -2,31 +2,43 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: taskboard
-      POSTGRES_USER: taskboard
-      POSTGRES_PASSWORD: taskboard
+      POSTGRES_USER: campusdesk
+      POSTGRES_PASSWORD: campusdesk
+      POSTGRES_DB: campusdesk
     ports:
+      # Overridable: 5432 is often already taken by another project.
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U taskboard -d taskboard"]
+      # depends_on alone only waits for the container, not for Postgres to
+      # accept connections. Without this the backend starts too early and
+      # Alembic fails on a refused connection.
+      test: ["CMD-SHELL", "pg_isready -U campusdesk -d campusdesk"]
       interval: 3s
       timeout: 3s
-      retries: 20
+      retries: 15
 
   backend:
     build: ./backend
     environment:
-      DATABASE_URL: postgresql+psycopg://taskboard:taskboard@postgres:5432/taskboard
+      DATABASE_URL: postgresql+psycopg://campusdesk:campusdesk@postgres:5432/campusdesk
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT:-8000}:8000"
+    # Migrations run before the server starts, so the schema is always
+    # current for the image being launched.
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
   frontend:
     build: ./frontend
+    environment:
+      # Consumed by envsubst in the nginx template at container start.
+      BACKEND_URL: http://backend:8000
     depends_on:
       - backend
     ports:

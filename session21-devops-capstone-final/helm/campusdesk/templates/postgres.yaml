@@ -1,0 +1,86 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "campusdesk.fullname" . }}-postgres
+  labels: {{- include "campusdesk.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  POSTGRES_USER: {{ .Values.postgres.user | quote }}
+  POSTGRES_PASSWORD: {{ .Values.postgres.password | quote }}
+  POSTGRES_DB: {{ .Values.postgres.database | quote }}
+---
+# A StatefulSet rather than a Deployment: the database needs a stable name
+# and its own volume that survives rescheduling.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "campusdesk.fullname" . }}-postgres
+  labels: {{- include "campusdesk.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "campusdesk.fullname" . }}-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "campusdesk.name" . }}
+      app.kubernetes.io/component: postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "campusdesk.name" . }}
+        app.kubernetes.io/component: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          envFrom:
+            - secretRef:
+                name: {{ include "campusdesk.fullname" . }}-postgres
+          env:
+            # Postgres refuses to initialise into a directory that already
+            # has a lost+found, which is what a mounted PVC root looks like.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ .Values.postgres.user | quote }}]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      {{- if not .Values.postgres.persistence.enabled }}
+      # No PersistentVolumeClaim: the data lives for the life of the pod.
+      # Used on clusters without a working CSI driver, where a PVC would sit
+      # Pending forever and block the whole release.
+      volumes:
+        - name: data
+          emptyDir: {}
+      {{- end }}
+  {{- if .Values.postgres.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.postgres.storage }}
+  {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "campusdesk.fullname" . }}-postgres
+  labels: {{- include "campusdesk.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ include "campusdesk.name" . }}
+    app.kubernetes.io/component: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+{{- end }}

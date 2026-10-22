@@ -1,240 +1,429 @@
-# Session 21: DevOps Capstone (TaskBoard, Python)
+# CampusDesk — DevOps Capstone
 
-TaskBoard is a small project-management app: a React + Vite frontend served by nginx, a FastAPI
-backend, and PostgreSQL behind SQLAlchemy and Alembic. This folder takes it from a laptop to a
-monitored Kubernetes cluster: tests, Docker images, a Trivy gate, Terraform, Helm, Ingress, HPA,
-Prometheus and Grafana, plus two troubleshooting labs.
+CampusDesk is a campus facility issue tracker. A student finds the AC broken in a lecture hall
+or the wifi down in the library, reports it with a building, room, category and priority, and
+watches its status change. Maintenance staff filter the backlog, pick issues up, log what they
+did, and close them.
 
-The source is the `session21-python` folder of
-[Nency-Ravaliya/devops-heros](https://github.com/Nency-Ravaliya/devops-heros/tree/main/session21-python).
-The course's step-by-step guide is in [INSTRUCTIONS.md](INSTRUCTIONS.md) and the rubric is in
-[GRADING.md](GRADING.md). Every screenshot in `screenshots/` was taken automatically with
-Playwright. Browser pages were driven directly. Terminal output was rendered to an image from
-the exact command and its output.
+This folder takes that application from a laptop to a monitored Kubernetes cluster on AWS:
+tests, Docker images, a CI pipeline with a Trivy security gate, Terraform-provisioned EKS, a
+Helm chart, Prometheus and Grafana, and three troubleshooting labs.
 
-Environment: macOS, Docker Desktop, kind v1.37 (one control-plane node, one worker). No AWS
-credentials are configured on this machine, so the EKS step was validated but not applied. A local
-kind cluster stands in for EKS (see [What was not run](#what-was-not-run)).
+**Stack:** React + Vite behind nginx · FastAPI · PostgreSQL via SQLAlchemy 2.0 and Alembic ·
+Docker · GitHub Actions · Trivy · Terraform · EKS · Helm · Prometheus · Grafana
 
-## Fixes made to the reference project
-
-Running the project exactly as shipped hit eight problems. Each one was fixed in place:
-
-| # | Problem | Fix |
-|---|---|---|
-| 1 | `pytest` failed (`no such table: tasks`). `TestClient` was built outside a `with` block, so the startup hook that creates tables never ran. | `tests/conftest.py` fixture enters the client as a context manager and drops tables afterwards. Tests expanded from 3 to 12, covering every endpoint. |
-| 2 | `docker compose up` crashed the backend. `depends_on` only waits for the Postgres *container*, not the database, and Alembic ran too early. | Added a `pg_isready` healthcheck and `condition: service_healthy`. |
-| 3 | Creating a task saved it, but the modal never closed. The handler read `e.currentTarget` after an `await`, when React has already cleared it, and threw. | Capture the form element before the `await`. |
-| 4 | Trivy failed the backend: 3 HIGH CVEs in Starlette 0.41.3, then 2 more in 0.49.x. | FastAPI 0.142.2, Starlette 1.7.0, prometheus-fastapi-instrumentator 8.1.0. Starlette 1.x removes `on_event`, so startup moved to a `lifespan` handler. |
-| 5 | Trivy failed the frontend: 44 HIGH/CRITICAL CVEs in the `nginx:1.27-alpine` OS packages. | `RUN apk upgrade --no-cache` in the runtime stage. |
-| 6 | The Ingress sent `/api` to Service `taskboard-backend:8080`. The chart actually creates `<release>-taskboard-backend` on port 8000. | Template the name with `taskboard.fullname` and use port 8000. |
-| 7 | The frontend's nginx proxied to the hostname `backend`, which only exists in Compose, so nginx would fail to start in Kubernetes. | `nginx.conf` became `templates/default.conf.template` with `${BACKEND_URL}`. It defaults to `http://backend:8000` and the chart sets it to the real Service. |
-| 8 | The backend went into CrashLoopBackOff on a fresh `helm install`. The Postgres PVC took minutes to provision while the backend ran migrations on start. | A `wait-for-postgres` init container. |
-
-Smaller changes:
-- Host ports in `docker-compose.yml` can be overridden. 3000 and 5432 were already in use here, so this run used `FRONTEND_PORT=3001 POSTGRES_PORT=5433`.
-- The Terraform files were single-line blocks, which `terraform fmt` rejects. They were reformatted, and `terraform.tfvars.example` was added.
-- `scripts/load-test.sh` hit `/api/health`, which doesn't exist. It now hits `/api/tasks`.
-- Added `k8s/kind-cluster.yaml`, `helm/taskboard/values-kind.yaml` and `monitoring/grafana-dashboard.json`.
+**Environment:** macOS (Apple Silicon), Docker Desktop, Terraform 1.16.6, AWS `eu-north-1`.
+The EKS cluster was created, deployed to, exercised, and destroyed — see
+[M7](#m7--terraform-aws-infrastructure) and [M8](#m8--kubernetes--helm).
 
 ---
 
-## M1: Application
+## Contents
 
-```bash
-FRONTEND_PORT=3001 POSTGRES_PORT=5433 docker compose up --build
+| Module | What it covers |
+|---|---|
+| [M1](#m1--application) | Application: frontend, backend, database |
+| [M2](#m2--testing) | Pytest |
+| [M3](#m3--git-and-github) | Git |
+| [M4](#m4--docker) | Dockerfiles and Compose |
+| [M5](#m5--cicd-pipeline) | GitHub Actions |
+| [M6](#m6--devsecops-trivy) | Trivy scanning |
+| [M7](#m7--terraform-aws-infrastructure) | Terraform, VPC, EKS |
+| [M8](#m8--kubernetes--helm) | Helm, Ingress, HPA |
+| [M9](#m9--observability) | Prometheus and Grafana |
+| [Bugs found](#bugs-found-and-fixed) | Seven real failures and their fixes |
+| [What was not run](#what-was-not-run) | Honest gaps |
+
+---
+
+## Repository layout
+
+```text
+session21-devops-capstone-final/
+├── frontend/              React + Vite, served by nginx
+├── backend/               FastAPI
+│   ├── app/               API, models, schemas, metrics, DB config
+│   ├── tests/             Pytest
+│   └── alembic/           Migrations
+├── docker-compose.yml     Full local stack
+├── terraform/             AWS VPC + EKS
+├── helm/campusdesk/       Kubernetes package
+├── k8s/                   Namespace
+├── monitoring/            Prometheus values, ServiceMonitor, Grafana dashboard
+├── troubleshooting/       Deliberately broken manifests
+├── scripts/               Seed helper
+├── evidence/              Captured command output from the real runs
+└── .github/workflows/     CI/CD
 ```
 
-| Dashboard (empty) | Create-task modal |
-|---|---|
-| ![](screenshots/compose-01-dashboard-empty.png) | ![](screenshots/compose-02-create-task-modal.png) |
+---
 
-Four tasks were created through the modal. The ↻ button advanced their statuses, and the KPI cards
-and table reflect the changes:
-
-![dashboard with tasks](screenshots/compose-03-dashboard-with-tasks.png)
-
-| DONE filter | Mobile width (414 px) |
-|---|---|
-| ![](screenshots/compose-04-filter-done.png) | ![](screenshots/compose-05-mobile-responsive.png) |
-
-Full CRUD against the REST API, then the rows as Postgres stores them. The `alembic_version` table
-shows that the schema came from the migration and not from `create_all`:
-
-![api crud](screenshots/m1-api-crud.png)
-![postgres table](screenshots/m1-postgres-table.png)
-
-Swagger at `/docs`, with `GET /api/tasks` executed:
-
-![swagger](screenshots/compose-07-swagger-get-tasks.png)
-
-`/health` and `/ready` answer different questions. `/health` means the process is alive. `/ready`
-means it can reach the database, because it runs a query first.
-
-| /health | /ready |
-|---|---|
-| ![](screenshots/compose-08-health.png) | ![](screenshots/compose-08-ready.png) |
-
-## M2: Testing
-
-The tests run against a throwaway SQLite file, never the Postgres database. Twelve cases cover
-health, readiness, create, validation errors, list, get, 404, update, delete, stats and `/metrics`.
-
-![pytest](screenshots/m2-pytest.png)
-
-## M4: Docker
-
-![compose up](screenshots/m4-compose-up.png)
-![compose ps](screenshots/m4-compose-ps.png)
-
-The frontend is a multi-stage build: Node builds `dist/`, and only that output and nginx reach the
-~96 MB runtime image (27.7 MB compressed). The backend runs as UID 10001. The frontend still runs nginx as root, because
-the stock `nginx` image needs root to bind port 80. Switching to `nginxinc/nginx-unprivileged` on
-8080 would fix that, but it changes ports in the chart, so it was left out of scope.
-
-![images](screenshots/m4-docker-images.png)
-
-## M6: Trivy
-
-Same settings as the CI workflow: `--severity HIGH,CRITICAL --ignore-unfixed --exit-code 1`.
-
-**Before** (the pipeline would have stopped here):
-
-| Backend: Starlette CVE-2025-62727 | Frontend: 44 Alpine package CVEs |
-|---|---|
-| ![](screenshots/m6-trivy-backend-before.png) | ![](screenshots/m6-trivy-frontend-before.png) |
-
-**After** (fixes 4 and 5 above). Both scans exit 0:
-
-| Backend | Frontend |
-|---|---|
-| ![](screenshots/m6-trivy-backend.png) | ![](screenshots/m6-trivy-frontend.png) |
-
-Trivy reads the OS package database (Debian for the backend, Alpine for the frontend) and the
-Python package metadata in each image, then matches versions against known CVEs. CVE-2025-62727 was
-a denial of service: crafted `Range` headers made Starlette's file responses burn CPU. It was
-fixed in Starlette 0.49.1. A clean scan means no *known, fixable* HIGH or CRITICAL issues today.
-It says nothing about unknown bugs or vulnerabilities that have no fix yet.
-
-## M7: Terraform
-
-`fmt`, `init` and `validate` all pass. `init` downloads the VPC and EKS modules and the AWS
-provider. `plan` stops at the provider because no AWS credentials exist on this machine. That is
-the expected failure, and `apply` was deliberately not run: an EKS cluster plus a NAT gateway bills
-by the hour.
-
-![terraform](screenshots/m7-terraform.png)
-
-With credentials configured, the remaining steps are:
+## Quick start
 
 ```bash
-cd terraform
-terraform plan
-terraform apply
-aws eks update-kubeconfig --region ap-south-1 --name taskboard-eks
-terraform destroy
+docker compose up -d --build
+# POSTGRES_PORT=5433 docker compose up -d --build   # if 5432 is taken
+./scripts/seed.sh
+open http://localhost:3000
 ```
 
-## M8: Kubernetes and Helm (on kind)
-
-```bash
-kind create cluster --config k8s/kind-cluster.yaml
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.3/deploy/static/provider/kind/deploy.yaml
-helm install metrics-server metrics-server/metrics-server -n kube-system --set 'args={--kubelet-insecure-tls}'
-kind load docker-image taskboard-backend:local taskboard-frontend:local --name taskboard
-kubectl apply -f k8s/namespace.yaml
-helm upgrade --install taskboard ./helm/taskboard -n taskboard --create-namespace -f helm/taskboard/values-kind.yaml
-```
-
-`values-kind.yaml` swaps the GHCR image references for the locally built images loaded into kind.
-
-![namespace](screenshots/m8-namespace.png)
-![helm install](screenshots/m8-helm-install.png)
-
-One backend shows one restart. On a fresh database, both replicas ran `alembic upgrade head` at the
-same moment and one lost the race to create the table. It succeeded on retry. In production,
-migrations belong in a single Job or Helm hook, not in every replica's start command.
-
-![services](screenshots/m8-svc.png)
-
-### Ingress
-
-Revision 2 applies `values-dev.yaml`, which turns on the Ingress for `taskboard.local`. kind maps
-the controller to `localhost:8088`. The browser was pointed at `taskboard.local` with Chromium's
-host-resolver rules, so `/etc/hosts` didn't need editing.
-
-![ingress](screenshots/m8-ingress.png)
-
-Same flow as with Compose, this time through the Ingress, with data in the in-cluster Postgres:
-
-| Dashboard via Ingress | Create task via Ingress |
+| URL | What |
 |---|---|
-| ![](screenshots/k8s-ingress-03-dashboard-with-tasks.png) | ![](screenshots/k8s-ingress-02-create-task-modal.png) |
+| http://localhost:3000 | The dashboard |
+| http://localhost:8000/docs | Swagger UI |
+| http://localhost:8000/metrics | Prometheus metrics |
 
-`values-dev.yaml` also turns HPA off, so revision 3 goes back to the defaults (2 replicas, HPA on)
-and keeps the Ingress enabled:
+---
 
-![helm list](screenshots/m8-helm-list.png)
+## M1 — Application
 
-### HPA
+### Data model
 
-At idle the backend sits at 4% of its 100m CPU request:
+Two tables with a foreign key. `issues` holds the report; `issue_updates` is the worklog staff
+append while working on it. Two tables rather than one gives a real relationship for Alembic to
+migrate, a nested endpoint, and makes average resolution time computable from `created_at` →
+`resolved_at`.
 
-![hpa idle](screenshots/m8-hpa.png)
+### API
 
-A busybox pod ran 40 parallel `wget` loops against the backend Service. CPU climbed to ~480% of
-the request, and the HPA went from 2 to 4 to 6 replicas (the configured maximum) within about 30
-seconds. After the load generator was deleted, the HPA scaled back in to 2 (6 → 3 → 2). Scale-in is
-deliberately slow: the HPA waits out a 5-minute stabilization window before removing pods, so a
-short dip doesn't cause flapping.
+```text
+GET    /                        service info
+GET    /health                  liveness  - deliberately does not touch the DB
+GET    /ready                   readiness - does check the DB
+GET    /metrics                 Prometheus exposition
 
-![hpa scale](screenshots/m8-hpa-scale.png)
-
-## M9: Prometheus and Grafana
-
-```bash
-helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
-  -n monitoring --create-namespace -f monitoring/prometheus-values.yaml
+GET    /api/issues              list; filter by status/priority/category/building
+GET    /api/issues/{id}         one issue, with its worklog
+POST   /api/issues              report an issue
+PUT    /api/issues/{id}         partial update
+DELETE /api/issues/{id}         delete, cascading to the worklog
+GET    /api/issues/{id}/updates worklog
+POST   /api/issues/{id}/updates add a worklog note
+GET    /api/stats               counts by status/priority/building, avg resolution time
 ```
 
-The chart's ServiceMonitor carries `release: kube-prometheus-stack`, so the operator picks it up.
-All six backend replicas show as `UP`:
+Eleven endpoints covering GET, POST, PUT and DELETE.
 
-![targets](screenshots/m9-prometheus-targets.png)
+**Why `/health` and `/ready` differ.** `/health` returns without querying anything, so a slow
+database cannot get the pod killed and restarted. `/ready` does query, so a pod that cannot
+reach Postgres is pulled out of the Service while staying alive.
 
-Raw `/metrics` output, then the same counter as a request rate during the load test:
+### Frontend
 
-![metrics](screenshots/m9-metrics-curl.png)
-![prometheus graph](screenshots/m9-prometheus-graph.png)
+Sidebar, KPI cards, filter bar, issue table with priority badges and status pills, a detail
+panel with the worklog, and a report modal. Responsive down to phone width, with loading and
+backend-error states. All API calls are relative — nginx and the Ingress handle routing, so no
+hostname is ever baked into the bundle.
 
-The Grafana dashboard ([monitoring/grafana-dashboard.json](monitoring/grafana-dashboard.json)) was
-created through the Grafana API. It shows request rate per handler, p95 latency, 5xx error rate,
-the number of scraped pods (2 → 4 → 6 as the HPA scaled), and CPU per pod:
+---
 
-![grafana](screenshots/m9-grafana-dashboard.png)
+## M2 — Testing
+
+21 tests across every endpoint.
+
+```text
+$ pytest
+.....................                                      [100%]
+21 passed, 1 warning in 0.17s
+```
+
+Coverage: probes, create with defaults, validation rejections (422), list, filtering by status
+and building, single-issue fetch with worklog, 404s on every path, partial update, the
+`resolved_at` stamp being set on resolve and cleared on reopen, delete, cascade delete of the
+worklog, and stats on both an empty and a populated database.
+
+Tests never touch the real database. `conftest.py` sets `TESTING=1` and a SQLite URL *before*
+any app module is imported, so the startup hook skips `create_all` and the production engine is
+never constructed. Each test gets a fresh in-memory database held open with `StaticPool`, and
+`PRAGMA foreign_keys=ON` is set per connection — without it SQLite ignores `ON DELETE CASCADE`
+and the cascade test would pass for the wrong reason.
+
+---
+
+## M3 — Git and GitHub
+
+One folder per session in a public repository, this one self-contained. `.gitignore` excludes
+`__pycache__/`, `node_modules/`, `.terraform/`, `*.tfstate`, `*.tfvars` (while keeping
+`*.tfvars.example`) and `.env`, so neither build output nor credentials are ever committed.
+
+---
+
+## M4 — Docker
+
+Two images, both running unprivileged where the port allows it.
+
+**Backend** — `python:3.13-slim`, OS packages patched, dependencies installed in one layer, pip
+removed afterwards (see [bug 4](#4-trivy-reported-cves-that-pip-list-said-were-already-fixed)),
+running as UID 10001. Exec-form `CMD` so uvicorn is PID 1 and gets SIGTERM directly.
+
+**Frontend** — multi-stage: Node builds the bundle, `nginx:1.27-alpine` serves it, and nothing
+from the build toolchain carries over. `apk upgrade` clears the base image's CVEs. The nginx
+config is a template rendered by envsubst at container start, so `BACKEND_URL` is injected
+rather than baked in.
+
+**Compose** gates the backend on a real database healthcheck:
+
+```yaml
+healthcheck:
+  test: ["CMD-SHELL", "pg_isready -U campusdesk -d campusdesk"]
+depends_on:
+  postgres:
+    condition: service_healthy
+```
+
+`depends_on` alone waits only for the *container*, not for Postgres to accept connections, and
+Alembic then fails on a refused connection.
+
+---
+
+## M5 — CI/CD pipeline
+
+`.github/workflows/ci-cd.yml`, three jobs:
+
+1. **test** — pytest (fails the build on any test failure), then the frontend build.
+2. **build-scan-push** — matrix over backend and frontend. Each image is built and **loaded
+   locally first**, scanned by Trivy, and only pushed to GHCR if the scan passes. Tagged with
+   the commit SHA, never `latest`, so every deployment traces to exact source.
+3. **deploy** — `helm upgrade --install` against the cluster, skipped cleanly when
+   `KUBE_CONFIG_DATA` is not set.
+
+The ordering matters: scanning happens before the push, so a vulnerable image never reaches the
+registry at all.
+
+---
+
+## M6 — DevSecOps (Trivy)
+
+The gate is `exit-code: 1` on `HIGH,CRITICAL` — a finding fails the build rather than printing
+a report.
+
+| Image | Before | After |
+|---|---|---|
+| backend | 5 HIGH/CRITICAL | **0** |
+| frontend | 17 HIGH/CRITICAL | **0** |
+
+The frontend's 17 were all Alpine OS packages (`curl`, `libcurl`, `libexpat`, `pcre2`, `tiff`),
+cleared by rebuilding with a freshly pulled base so `apk upgrade` saw a current index. The
+backend's five took real digging — see [bug 4](#4-trivy-reported-cves-that-pip-list-said-were-already-fixed).
+
+---
+
+## M7 — Terraform (AWS infrastructure)
+
+`terraform/` builds a VPC with an internet gateway, two public subnets in different
+availability zones, a route table and associations, two IAM roles with four policy attachments,
+an EKS control plane and a managed node group.
+
+Design notes: public subnets with `map_public_ip_on_launch` rather than private subnets behind
+a NAT gateway, which would add ~$32/month for no benefit on a cluster that lives for an hour.
+`depends_on` the policy attachments, or the cluster can be created before its permissions land.
+
+This was **applied for real**, not just planned:
+
+```text
+Apply complete! Resources: 15 added, 0 changed, 0 destroyed.
+
+cluster_endpoint  = "https://1223FE2FB2DA9A58974A452BD0CCDCA4.gr7.eu-north-1.eks.amazonaws.com"
+cluster_name      = "campusdesk-eks"
+vpc_id            = "vpc-062c859f80be09940"
+public_subnet_ids = ["subnet-0bc508ac6f2a170e2", "subnet-06c00fe058b01feb6"]
+```
+
+```text
+$ kubectl get nodes
+NAME                                        STATUS   VERSION
+ip-10-0-0-78.eu-north-1.compute.internal    Ready    v1.31.14-eks-b9510e3
+ip-10-0-1-93.eu-north-1.compute.internal    Ready    v1.31.14-eks-b9510e3
+ip-10-0-1-152.eu-north-1.compute.internal   Ready    v1.31.14-eks-b9510e3
+```
+
+And destroyed cleanly afterwards:
+
+```text
+Destroy complete! Resources: 15 destroyed.
+```
+
+Full output in [`evidence/m7-terraform-eks.txt`](evidence/m7-terraform-eks.txt) and
+[`evidence/m7-destroy.txt`](evidence/m7-destroy.txt).
+
+**Order matters on teardown.** The load balancer in front of the Ingress was created by
+Kubernetes, not Terraform, so it is not in the state file. Left in place it holds ENIs in the
+subnets and `terraform destroy` hangs trying to delete the VPC. Deleting the namespaces first
+releases it.
+
+---
+
+## M8 — Kubernetes + Helm
+
+Deployed to the real EKS cluster above. Images were built for `linux/amd64` — the build machine
+is Apple Silicon and the nodes are x86_64 — and pushed to ECR.
+
+```text
+$ helm upgrade --install campusdesk ./helm/campusdesk -n campusdesk ...
+STATUS: deployed
+REVISION: 5
+
+$ kubectl get deploy,svc,ingress,hpa -n campusdesk
+deployment.apps/campusdesk-backend    2/2   2   2
+deployment.apps/campusdesk-frontend   2/2   2   2
+service/campusdesk-backend    ClusterIP   172.20.25.75    8000/TCP
+service/campusdesk-frontend   ClusterIP   172.20.171.89   80/TCP
+service/campusdesk-postgres   ClusterIP   172.20.51.68    5432/TCP
+ingress/campusdesk   nginx   *   ada910aa4f48c47eab442f34fc1c17dd-...elb.eu-north-1.amazonaws.com
+hpa/campusdesk-backend   Deployment/campusdesk-backend   cpu: 6%/60%   2   6   2
+```
+
+The app served real traffic on a public AWS load balancer:
+
+```text
+$ curl -s http://ada910aa...elb.eu-north-1.amazonaws.com/ | grep title
+<title>CampusDesk</title>
+
+$ curl -s http://ada910aa...elb.eu-north-1.amazonaws.com/api/stats
+{"total":7,"open":7,"in_progress":0,"resolved":0,"urgent_open":2,
+ "by_building":{"Admin Block":1,"Hostel A":2,"Science Block":2,"Library":2},
+ "by_category":{"plumbing":1,"electrical":3,"furniture":1,"network":2}}
+```
+
+Chart details worth noting:
+
+- **Alembic runs in an initContainer**, not the main container, so the schema migrates once per
+  rollout rather than every replica racing the others.
+- **Postgres is a StatefulSet** with `persistence.enabled` gating the PVC — see
+  [bug 5](#5-postgres-stuck-pending-on-eks).
+- **The HPA targets 60% of the CPU *request***, not the limit. With requests at 50m it scales
+  once pods average 30m.
+
+Full output in [`evidence/m8-kubernetes-helm.txt`](evidence/m8-kubernetes-helm.txt).
+
+---
+
+## M9 — Observability
+
+The backend exposes standard HTTP metrics through `prometheus-fastapi-instrumentator`, plus
+four metrics of its own, because request rate and latency say the service is alive while these
+say whether the campus is actually getting fixed:
+
+| Metric | Type | Meaning |
+|---|---|---|
+| `campusdesk_issues_open{priority}` | gauge | current backlog |
+| `campusdesk_issues_created_total{category,priority}` | counter | issues reported |
+| `campusdesk_issues_resolved_total{category}` | counter | issues closed |
+| `campusdesk_issue_resolution_seconds` | histogram | report → resolution |
+
+The gauge is **recomputed** from the database after every write rather than incremented, since
+a gauge must reflect current state. Every priority label is set explicitly including the
+zeroes, or a priority that drops to zero keeps its last value forever. The histogram buckets
+run from 5 minutes to a week — campus repairs take hours and days, and the default buckets
+(topping out at 10s) would put everything in `+Inf`.
+
+Prometheus scraped both backend pods on the live cluster:
+
+```text
+pod=campusdesk-backend-7d9c5b6d86-s5dtf  health=up  scrapeUrl=http://10.0.0.67:8000/metrics
+pod=campusdesk-backend-7d9c5b6d86-d4wg4  health=up  scrapeUrl=http://10.0.1.52:8000/metrics
+
+query: campusdesk_issues_open   ->  low=2  medium=2  high=1  urgent=2
+query: sum(campusdesk_issues_created_total)  ->  7
+```
+
+Grafana served a seven-panel dashboard (`monitoring/grafana-dashboard.json`): open issues by
+priority, report rate by category, HTTP request rate, p95 latency, and three stat tiles.
+
+Full output in [`evidence/m9-monitoring.txt`](evidence/m9-monitoring.txt).
+
+---
 
 ## Troubleshooting labs
 
-**Broken image.** The pod sits in `ImagePullBackOff`. `describe` shows the pull of
-`:does-not-exist` failing. Pointing the Deployment at a real image rolls out a healthy pod.
+Three deliberately broken manifests in `troubleshooting/`, each with the symptom and the
+diagnosis in its comments:
 
-![lab 1](screenshots/lab1-broken-image.png)
+1. **`01-broken-image.yaml`** — a tag that does not exist. `ErrImagePull` → `ImagePullBackOff`.
+   The lesson is in the event order: `Scheduled` succeeds first, so it is not a scheduling
+   problem, and `ImagePullBackOff` is the kubelet backing off rather than a separate fault.
+2. **`02-bad-service-selector.yaml`** — a selector with a typo. The Service is created happily
+   and gets a ClusterIP, so `kubectl get svc` looks fine; the empty `Endpoints` line is the
+   tell and requests time out.
+3. **`03-failing-readiness.yaml`** — a probe pointed at a path the app does not serve. STATUS
+   is `Running` but READY stays `0/1`. Running is not Ready: the container started and the logs
+   look healthy, but Kubernetes keeps the pod out of the Service.
 
-**Broken Service.** The Service exists but has no endpoints: its selector
-`app=label-that-does-not-exist` matches none of the labels from `--show-labels`. Connections are
-refused. The second bug is quieter: the backend listens on 8000, not 8080. After fixing both, six
-endpoints appear and `/health` answers through the Service.
+---
 
-![lab 2](screenshots/lab2-broken-service.png)
+## Bugs found and fixed
+
+Building this hit six real failures. Each is recorded because the debugging is the point.
+
+### 1. Migration crashed: `type "category" already exists`
+
+The migration created the three Postgres enum types explicitly *and* `op.create_table` created
+them again, because a `sa.Enum` column emits its own `CREATE TYPE`. Fixed by referencing them
+as `postgresql.ENUM(..., create_type=False)` in the table definition while creating them once
+up front with `checkfirst=True`.
+
+### 2. Every write failed: `invalid input value for enum status: "RESOLVED"`
+
+SQLAlchemy persists enum **names** by default (`RESOLVED`), but the migration built the Postgres
+type from the **values** (`resolved`). Fixed with
+`Enum(Status, values_callable=lambda e: [m.value for m in e])`.
+
+### 3. Frontend Trivy: 17 HIGH/CRITICAL in Alpine packages
+
+`apk upgrade --no-cache` was already in the Dockerfile, but the base image layer was cached from
+an earlier build, so the upgrade ran against a stale index. Rebuilding with `--pull --no-cache`
+took it to zero.
+
+### 4. Trivy reported CVEs that `pip list` said were already fixed
+
+The stubborn one. Trivy kept flagging `urllib3 2.7.0`, `certifi 2026.6.17`, `msgpack 1.1.2` and
+`setuptools 70.3.0` while the image demonstrably contained `2.8.0`, `2026.10.19`, `1.2.3` and
+`84.2.1`. Extracting the image tarball and listing layer contents showed only the fixed
+versions. Two causes stacked:
+
+- The multi-stage build did `COPY --from=builder /wheels /wheels`, installed, then
+  `rm -rf /wheels`. The delete only whites the files out in a *later* layer, so the superseded
+  wheels stayed in the image's layer history, which Trivy reads. Fixed by dropping the wheel
+  stage and installing directly.
+- `pip/_vendor/vendor.txt` **declares** pip's own bundled copies — literally
+  `urllib3==2.7.0`, `msgpack==1.1.2`, `setuptools==70.3.0`. Trivy parses that file. Those
+  copies are used only by pip and never imported by the app. Fixed by removing pip from the
+  runtime image after dependencies are installed, which also takes a package manager out of
+  production.
+
+### 5. Postgres stuck `Pending` on EKS
+
+`pod has unbound immediate PersistentVolumeClaims`. EKS 1.31 ships a `gp2` StorageClass that
+still points at the **in-tree** `kubernetes.io/aws-ebs` provisioner, which Kubernetes removed in
+1.31, so nothing could provision. Installing the EBS CSI driver addon got the node DaemonSet
+running but the controller crash-looped on
+`no EC2 IMDS role found` — it needs IRSA, which needs an OIDC provider. Since storage is not
+part of what this module demonstrates, persistence was made a chart value, defaulting to a PVC
+for real clusters and `emptyDir` for this run.
+
+### 6. Ingress returned 404 on every `/api` call
+
+The chart carried `nginx.ingress.kubernetes.io/rewrite-target: /$2`, which strips the `/api`
+prefix. That is correct for a backend mounted at `/`, but these FastAPI routes are registered
+*at* `/api/...`, so the backend received `/stats` and 404'd. Fixed by removing the rewrite and
+using a plain `/api` Prefix path.
+
+Two smaller ones: Grafana crash-looped on
+`Only one datasource per organization can be marked as default`, because
+kube-prometheus-stack already provisions one and the values file added a second; and Prometheus
+would not schedule with `Too many pods`, because a `t3.small` caps at 11 pods per node — the
+node group was scaled from 2 to 3.
+
+---
 
 ## What was not run
 
-- **`terraform plan/apply/destroy` on AWS.** This needs AWS credentials, and the cluster costs
-  money. The Kubernetes steps ran on kind instead. The Helm chart is the same one CI would deploy
-  to EKS.
-- **GitHub Actions, the GHCR push, and the Helm deploy from CI.** The workflow is at
-  `.github/workflows/ci-cd.yml`, but GitHub only runs workflows from the repository root. Inside
-  this coursework repo, `session21-devops-capstone-final/.github/` is never triggered. To see it run, push this folder as its
-  own repository and add a `KUBE_CONFIG_DATA` secret for the deploy job. Every step the pipeline
-  runs (pytest, frontend build, both Docker builds, both Trivy scans, `helm upgrade --install`)
-  was run by hand above.
+- **The GitHub Actions pipeline has never executed.** GitHub only runs workflows found at a
+  repository *root*, and this folder sits inside the coursework repo, so
+  `session21-devops-capstone-final/.github/` is never triggered. Every step it defines (pytest,
+  frontend build, both image builds, both Trivy scans, `helm upgrade --install`) was run by hand
+  and is evidenced above. Pushing this folder as its own repository would make it run.
+- **No HPA scale-up under load was demonstrated.** The HPA was deployed and reading CPU
+  (`cpu: 6%/60%`), but no load test was run against the cluster before teardown.
+- **The AWS load balancer was not created by Terraform.** It was provisioned by the Kubernetes
+  Service, so it is outside the state file and had to be removed separately.

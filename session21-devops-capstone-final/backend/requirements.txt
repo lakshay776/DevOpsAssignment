@@ -3,8 +3,17 @@ starlette==1.7.0
 uvicorn[standard]==0.34.0
 sqlalchemy==2.0.36
 psycopg[binary]==3.2.3
-pydantic-settings==2.7.1
-prometheus-fastapi-instrumentator==8.1.0
 alembic==1.14.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+prometheus-fastapi-instrumentator==8.1.0
+prometheus-client==0.21.1
 pytest==8.3.4
 httpx==0.28.1
+
+# Transitive dependencies pinned to clear HIGH/CRITICAL findings that Trivy
+# fails the build on. Each was flagged at the version pip resolved by
+# default; these are the first fixed releases.
+certifi>=2026.10.19      # CVE in 2026.6.17
+urllib3>=2.8.0           # 2 CVEs in 2.7.0
+msgpack>=1.2.1           # CVE in 1.1.2

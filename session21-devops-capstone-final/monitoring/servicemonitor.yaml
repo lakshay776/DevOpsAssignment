@@ -1,0 +1,20 @@
+# Tells the Prometheus operator to scrape the CampusDesk backend.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: campusdesk-backend
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  namespaceSelector:
+    matchNames: [campusdesk]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: campusdesk
+      app.kubernetes.io/instance: campusdesk
+      app.kubernetes.io/component: backend
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

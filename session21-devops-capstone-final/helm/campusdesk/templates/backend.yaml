@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "campusdesk.fullname" . }}-backend
+  labels: {{- include "campusdesk.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.backend.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "campusdesk.name" . }}
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "campusdesk.name" . }}
+        app.kubernetes.io/component: backend
+      annotations:
+        # Tells Prometheus to scrape these pods directly.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      {{- if .Values.postgres.enabled }}
+      initContainers:
+        # Alembic runs here rather than in the main container, so the schema
+        # is migrated exactly once per rollout instead of once per replica
+        # racing the others.
+        - name: migrate
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          command: ["sh", "-c"]
+          args:
+            - |
+              until python -c "import socket,sys; s=socket.create_connection((sys.argv[1],5432),2)" {{ include "campusdesk.fullname" . }}-postgres; do
+                echo "waiting for postgres..."; sleep 2
+              done
+              alembic upgrade head
+          env:
+            - name: DATABASE_URL
+              value: {{ include "campusdesk.databaseUrl" . | quote }}
+      {{- end }}
+      containers:
+        - name: backend
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: DATABASE_URL
+              value: {{ include "campusdesk.databaseUrl" . | quote }}
+          livenessProbe:
+            # /health deliberately does not touch the database, so a slow
+            # query cannot get the pod killed.
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            # /ready does check the database, so a pod that cannot reach
+            # Postgres is pulled out of the Service.
+            httpGet: { path: /ready, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources: {{- toYaml .Values.backend.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "campusdesk.fullname" . }}-backend
+  labels:
+    {{- include "campusdesk.labels" . | nindent 4 }}
+    # Lets the ServiceMonitor select the backend alone. Without it the
+    # shared labels also match the frontend, whose nginx has no /metrics,
+    # leaving two permanently-down scrape targets.
+    app.kubernetes.io/component: backend
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ include "campusdesk.name" . }}
+    app.kubernetes.io/component: backend
+  ports:
+    - port: {{ .Values.backend.service.port }}
+      targetPort: http
+      name: http

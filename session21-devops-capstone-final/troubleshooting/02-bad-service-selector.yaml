@@ -1,0 +1,26 @@
+# Lab 2: a Service whose selector matches no Pod.
+#
+# Apply it, then:
+#   kubectl get svc -n campusdesk broken-selector          # looks healthy
+#   kubectl get endpointslice -n campusdesk -l kubernetes.io/service-name=broken-selector
+#   kubectl describe svc -n campusdesk broken-selector | grep Endpoints
+#
+# Expected: the Service is created and gets a ClusterIP, so `get svc` looks
+# fine. The empty Endpoints line is the tell, and any request to it times
+# out because there is nowhere to send traffic.
+#
+# A selector that matches nothing is the usual cause of a Service that
+# "exists but does not work" - almost always a label typo or the wrong
+# namespace.
+apiVersion: v1
+kind: Service
+metadata:
+  name: broken-selector
+  namespace: campusdesk
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/component: backnd   # typo: should be "backend"
+  ports:
+    - port: 8000
+      targetPort: 8000

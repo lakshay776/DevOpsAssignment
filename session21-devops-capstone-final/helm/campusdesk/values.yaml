@@ -1,0 +1,63 @@
+nameOverride: ""
+fullnameOverride: ""
+
+backend:
+  image:
+    repository: campusdesk/backend
+    tag: local
+    # Never on a real cluster: the nodes would try to pull from a registry
+    # that does not have the image. Overridden to IfNotPresent for kind,
+    # where images are side-loaded.
+    pullPolicy: IfNotPresent
+  replicaCount: 2
+  service:
+    port: 8000
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+frontend:
+  image:
+    repository: campusdesk/frontend
+    tag: local
+    pullPolicy: IfNotPresent
+  replicaCount: 2
+  service:
+    port: 80
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+postgres:
+  enabled: true
+  image: postgres:16-alpine
+  user: campusdesk
+  password: campusdesk
+  database: campusdesk
+  storage: 1Gi
+  persistence:
+    # Requires a working CSI driver in the cluster. Set false on clusters
+    # without one (the PVC would stay Pending and block the release); the
+    # database then uses an emptyDir and resets if the pod restarts.
+    enabled: true
+
+ingress:
+  enabled: true
+  className: nginx
+  # Empty host means the rules match any hostname, which is what a
+  # kind/localhost demo needs.
+  host: ""
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 60

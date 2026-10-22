@@ -1,0 +1,290 @@
+---
+apiVersion: v1
+data:
+  campusdesk.json: |-
+    {
+      "title": "CampusDesk",
+      "uid": "campusdesk",
+      "tags": [
+        "campusdesk"
+      ],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "10s",
+      "time": {
+        "from": "now-30m",
+        "to": "now"
+      },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Open issues by priority",
+          "type": "timeseries",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 0
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "campusdesk_issues_open",
+              "legendFormat": "{{priority}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Issues reported (rate per 5m)",
+          "type": "timeseries",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 0
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "sum by (category) (rate(campusdesk_issues_created_total[5m]))",
+              "legendFormat": "{{category}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "HTTP request rate",
+          "type": "timeseries",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 8
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "sum by (handler) (rate(http_requests_total{job=\"campusdesk-backend\"}[5m]))",
+              "legendFormat": "{{handler}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Request latency (p95)",
+          "type": "timeseries",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 8
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"campusdesk-backend\"}[5m])))",
+              "legendFormat": "p95",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Total open backlog",
+          "type": "stat",
+          "gridPos": {
+            "h": 5,
+            "w": 8,
+            "x": 0,
+            "y": 16
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "sum(campusdesk_issues_open)",
+              "legendFormat": "open",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "Backend pods up",
+          "type": "stat",
+          "gridPos": {
+            "h": 5,
+            "w": 8,
+            "x": 8,
+            "y": 16
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "sum(up{job=\"campusdesk-backend\"})",
+              "legendFormat": "pods",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "title": "Issues resolved (total)",
+          "type": "stat",
+          "gridPos": {
+            "h": 5,
+            "w": 8,
+            "x": 16,
+            "y": 16
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "sum(campusdesk_issues_resolved_total)",
+              "legendFormat": "resolved",
+              "refId": "A"
+            }
+          ]
+        }
+      ],
+      "templating": {
+        "list": [
+          {
+            "name": "DS_PROMETHEUS",
+            "type": "datasource",
+            "query": "prometheus",
+            "current": {},
+            "hide": 0
+          }
+        ]
+      }
+    }
+kind: ConfigMap
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: '{"apiVersion":"v1","data":{"campusdesk.json":"{\n  \"title\":
+      \"CampusDesk\",\n  \"uid\": \"campusdesk\",\n  \"tags\": [\n    \"campusdesk\"\n  ],\n  \"timezone\":
+      \"browser\",\n  \"schemaVersion\": 39,\n  \"version\": 1,\n  \"refresh\": \"10s\",\n  \"time\":
+      {\n    \"from\": \"now-30m\",\n    \"to\": \"now\"\n  },\n  \"panels\": [\n    {\n      \"id\":
+      1,\n      \"title\": \"Open issues by priority\",\n      \"type\": \"timeseries\",\n      \"gridPos\":
+      {\n        \"h\": 8,\n        \"w\": 12,\n        \"x\": 0,\n        \"y\":
+      0\n      },\n      \"datasource\": {\n        \"type\": \"prometheus\",\n        \"uid\":
+      \"${DS_PROMETHEUS}\"\n      },\n      \"fieldConfig\": {\n        \"defaults\":
+      {\n          \"unit\": \"short\"\n        },\n        \"overrides\": []\n      },\n      \"targets\":
+      [\n        {\n          \"expr\": \"campusdesk_issues_open\",\n          \"legendFormat\":
+      \"{{priority}}\",\n          \"refId\": \"A\"\n        }\n      ]\n    },\n    {\n      \"id\":
+      2,\n      \"title\": \"Issues reported (rate per 5m)\",\n      \"type\": \"timeseries\",\n      \"gridPos\":
+      {\n        \"h\": 8,\n        \"w\": 12,\n        \"x\": 12,\n        \"y\":
+      0\n      },\n      \"datasource\": {\n        \"type\": \"prometheus\",\n        \"uid\":
+      \"${DS_PROMETHEUS}\"\n      },\n      \"fieldConfig\": {\n        \"defaults\":
+      {\n          \"unit\": \"short\"\n        },\n        \"overrides\": []\n      },\n      \"targets\":
+      [\n        {\n          \"expr\": \"sum by (category) (rate(campusdesk_issues_created_total[5m]))\",\n          \"legendFormat\":
+      \"{{category}}\",\n          \"refId\": \"A\"\n        }\n      ]\n    },\n    {\n      \"id\":
+      3,\n      \"title\": \"HTTP request rate\",\n      \"type\": \"timeseries\",\n      \"gridPos\":
+      {\n        \"h\": 8,\n        \"w\": 12,\n        \"x\": 0,\n        \"y\":
+      8\n      },\n      \"datasource\": {\n        \"type\": \"prometheus\",\n        \"uid\":
+      \"${DS_PROMETHEUS}\"\n      },\n      \"fieldConfig\": {\n        \"defaults\":
+      {\n          \"unit\": \"reqps\"\n        },\n        \"overrides\": []\n      },\n      \"targets\":
+      [\n        {\n          \"expr\": \"sum by (handler) (rate(http_requests_total{job=\\\"campusdesk-backend\\\"}[5m]))\",\n          \"legendFormat\":
+      \"{{handler}}\",\n          \"refId\": \"A\"\n        }\n      ]\n    },\n    {\n      \"id\":
+      4,\n      \"title\": \"Request latency (p95)\",\n      \"type\": \"timeseries\",\n      \"gridPos\":
+      {\n        \"h\": 8,\n        \"w\": 12,\n        \"x\": 12,\n        \"y\":
+      8\n      },\n      \"datasource\": {\n        \"type\": \"prometheus\",\n        \"uid\":
+      \"${DS_PROMETHEUS}\"\n      },\n      \"fieldConfig\": {\n        \"defaults\":
+      {\n          \"unit\": \"s\"\n        },\n        \"overrides\": []\n      },\n      \"targets\":
+      [\n        {\n          \"expr\": \"histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\\\"campusdesk-backend\\\"}[5m])))\",\n          \"legendFormat\":
+      \"p95\",\n          \"refId\": \"A\"\n        }\n      ]\n    },\n    {\n      \"id\":
+      5,\n      \"title\": \"Total open backlog\",\n      \"type\": \"stat\",\n      \"gridPos\":
+      {\n        \"h\": 5,\n        \"w\": 8,\n        \"x\": 0,\n        \"y\": 16\n      },\n      \"datasource\":
+      {\n        \"type\": \"prometheus\",\n        \"uid\": \"${DS_PROMETHEUS}\"\n      },\n      \"fieldConfig\":
+      {\n        \"defaults\": {\n          \"unit\": \"short\"\n        },\n        \"overrides\":
+      []\n      },\n      \"targets\": [\n        {\n          \"expr\": \"sum(campusdesk_issues_open)\",\n          \"legendFormat\":
+      \"open\",\n          \"refId\": \"A\"\n        }\n      ]\n    },\n    {\n      \"id\":
+      6,\n      \"title\": \"Backend pods up\",\n      \"type\": \"stat\",\n      \"gridPos\":
+      {\n        \"h\": 5,\n        \"w\": 8,\n        \"x\": 8,\n        \"y\": 16\n      },\n      \"datasource\":
+      {\n        \"type\": \"prometheus\",\n        \"uid\": \"${DS_PROMETHEUS}\"\n      },\n      \"fieldConfig\":
+      {\n        \"defaults\": {\n          \"unit\": \"short\"\n        },\n        \"overrides\":
+      []\n      },\n      \"targets\": [\n        {\n          \"expr\": \"sum(up{job=\\\"campusdesk-backend\\\"})\",\n          \"legendFormat\":
+      \"pods\",\n          \"refId\": \"A\"\n        }\n      ]\n    },\n    {\n      \"id\":
+      7,\n      \"title\": \"Issues resolved (total)\",\n      \"type\": \"stat\",\n      \"gridPos\":
+      {\n        \"h\": 5,\n        \"w\": 8,\n        \"x\": 16,\n        \"y\":
+      16\n      },\n      \"datasource\": {\n        \"type\": \"prometheus\",\n        \"uid\":
+      \"${DS_PROMETHEUS}\"\n      },\n      \"fieldConfig\": {\n        \"defaults\":
+      {\n          \"unit\": \"short\"\n        },\n        \"overrides\": []\n      },\n      \"targets\":
+      [\n        {\n          \"expr\": \"sum(campusdesk_issues_resolved_total)\",\n          \"legendFormat\":
+      \"resolved\",\n          \"refId\": \"A\"\n        }\n      ]\n    }\n  ],\n  \"templating\":
+      {\n    \"list\": [\n      {\n        \"name\": \"DS_PROMETHEUS\",\n        \"type\":
+      \"datasource\",\n        \"query\": \"prometheus\",\n        \"current\": {},\n        \"hide\":
+      0\n      }\n    ]\n  }\n}"},"kind":"ConfigMap","metadata":{"annotations":{},"name":"campusdesk-dashboard","namespace":"monitoring"}}
+
+'
+  labels:
+    grafana_dashboard: '1'
+  name: campusdesk-dashboard

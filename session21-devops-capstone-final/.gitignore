@@ -1,14 +1,26 @@
-.idea/
-.vscode/
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# node
 node_modules/
 dist/
-target/
-*.log
-.env
+.vite/
+
+# terraform
 .terraform/
 *.tfstate
 *.tfstate.*
-__pycache__/
-.venv/
-*.pyc
-test.db
+*.tfvars
+!*.tfvars.example
+crash.log
+
+# kube / helm
+kubeconfig
+*.kubeconfig
+
+# os
+.DS_Store

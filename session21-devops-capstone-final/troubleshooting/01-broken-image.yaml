@@ -1,0 +1,31 @@
+# Lab 1: a Deployment whose image tag does not exist.
+#
+# Apply it, then:
+#   kubectl get pods -n campusdesk -l app=broken-image
+#   kubectl describe pod -n campusdesk -l app=broken-image
+#
+# Expected: ErrImagePull, then ImagePullBackOff as the kubelet backs off
+# between retries. Note that `Scheduled` succeeds first - this is not a
+# scheduling problem, which is the distinction `describe` makes obvious.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broken-image
+  namespace: campusdesk
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: broken-image
+  template:
+    metadata:
+      labels:
+        app: broken-image
+    spec:
+      containers:
+        - name: app
+          image: campusdesk/backend:this-tag-does-not-exist
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi

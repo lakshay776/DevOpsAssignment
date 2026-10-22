@@ -1,0 +1,45 @@
+===== M8: Kubernetes + Helm on EKS =====
+$ helm list -n campusdesk
+NAME      	NAMESPACE 	REVISION	UPDATED                             	STATUS  	CHART           	APP VERSION
+campusdesk	campusdesk	5       	2026-10-21 18:08:26.121807 +0530 IST	deployed	campusdesk-1.0.0	1.0.0      
+
+$ kubectl get all -n campusdesk
+NAME                                      READY   STATUS    RESTARTS   AGE
+pod/campusdesk-backend-7d9c5b6d86-d4wg4   1/1     Running   0          44m
+pod/campusdesk-backend-7d9c5b6d86-s5dtf   1/1     Running   0          44m
+pod/campusdesk-frontend-96b688b58-hwxp9   1/1     Running   0          44m
+pod/campusdesk-frontend-96b688b58-kr5qd   1/1     Running   0          44m
+pod/campusdesk-postgres-0                 1/1     Running   0          29m
+
+NAME                          TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
+service/campusdesk-backend    ClusterIP   172.20.25.75    <none>        8000/TCP   44m
+service/campusdesk-frontend   ClusterIP   172.20.171.89   <none>        80/TCP     44m
+service/campusdesk-postgres   ClusterIP   172.20.51.68    <none>        5432/TCP   44m
+
+NAME                                  READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/campusdesk-backend    2/2     2            2           44m
+deployment.apps/campusdesk-frontend   2/2     2            2           44m
+
+NAME                                            DESIRED   CURRENT   READY   AGE
+replicaset.apps/campusdesk-backend-7d9c5b6d86   2         2         2       44m
+replicaset.apps/campusdesk-frontend-96b688b58   2         2         2       44m
+
+NAME                                   READY   AGE
+statefulset.apps/campusdesk-postgres   1/1     29m
+
+NAME                                                     REFERENCE                       TARGETS       MINPODS   MAXPODS   REPLICAS   AGE
+horizontalpodautoscaler.autoscaling/campusdesk-backend   Deployment/campusdesk-backend   cpu: 6%/60%   2         6         2          44m
+
+$ kubectl get ingress -n campusdesk
+NAME         CLASS   HOSTS   ADDRESS                                                                          PORTS   AGE
+campusdesk   nginx   *       ada910aa4f48c47eab442f34fc1c17dd-311432b4c3e04579.elb.eu-north-1.amazonaws.com   80      44m
+
+$ kubectl get hpa -n campusdesk
+NAME                 REFERENCE                       TARGETS       MINPODS   MAXPODS   REPLICAS   AGE
+campusdesk-backend   Deployment/campusdesk-backend   cpu: 6%/60%   2         6         2          44m
+
+--- ingress routing (via port-forward to the controller) ---
+$ curl -s http://localhost:8099/ | grep title
+<title>CampusDesk</title>
+$ curl -s http://localhost:8099/api/stats
+{"total":7,"open":7,"in_progress":0,"resolved":0,"urgent_open":2,"by_building":{"Admin Block":1,"Hostel A":2,"Science Block":2,"Library":2},"by_category":{"plumbing":1,"electrical":3,"furniture":1,"network":2},"avg_resolution_hours":null}

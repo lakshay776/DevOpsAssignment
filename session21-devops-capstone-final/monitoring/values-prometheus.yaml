@@ -1,0 +1,41 @@
+# kube-prometheus-stack, trimmed to what this project needs.
+#
+# Installed with:
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+#     -n monitoring --create-namespace -f monitoring/values-prometheus.yaml
+
+grafana:
+  enabled: true
+  adminPassword: admin
+  service:
+    type: ClusterIP
+  # No datasources block here on purpose. kube-prometheus-stack already
+  # provisions a default Prometheus datasource; declaring another marked
+  # isDefault makes Grafana refuse to start with
+  # "Only one datasource per organization can be marked as default".
+
+prometheus:
+  prometheusSpec:
+    # Without this the operator only picks up ServiceMonitors carrying its
+    # own release label, and the one below would be silently ignored.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    retention: 2h
+    resources:
+      requests:
+        cpu: 100m
+        memory: 400Mi
+
+# Trimmed: these scrape control-plane components that EKS does not expose,
+# so they would sit permanently "down" and clutter the targets page.
+kubeEtcd:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+
+alertmanager:
+  enabled: false

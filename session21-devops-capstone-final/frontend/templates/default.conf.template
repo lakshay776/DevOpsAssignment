@@ -1,24 +1,27 @@
 server {
-  listen 80;
-  server_name _;
-  root /usr/share/nginx/html;
-  index index.html;
+    listen 80;
+    server_name _;
 
-  location / {
-    try_files $uri /index.html;
-  }
+    root /usr/share/nginx/html;
+    index index.html;
 
-  # Local Docker Compose and Kubernetes service-to-service API proxy.
-  # BACKEND_URL is the backend Service: http://backend:8000 in Compose, set by the Helm chart in Kubernetes.
-  location /api/ {
-    proxy_pass ${BACKEND_URL};
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  }
+    # The React app is a single-page app: any unknown path must still return
+    # index.html so client-side routing works on a hard refresh.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
 
-  location /health {
-    proxy_pass ${BACKEND_URL}/health;
-  }
+    # ${BACKEND_URL} is substituted at container start, so the same image
+    # points at the Compose service or the Kubernetes Service.
+    location /api/ {
+        proxy_pass ${BACKEND_URL};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Proxied so Prometheus can scrape through the frontend if needed, and
+    # so /health is reachable at the same origin as the UI.
+    location = /health { proxy_pass ${BACKEND_URL}/health; }
 }

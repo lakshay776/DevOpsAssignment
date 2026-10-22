@@ -1,0 +1,14 @@
+===== Public access via AWS load balancer =====
+URL: http://ada910aa4f48c47eab442f34fc1c17dd-311432b4c3e04579.elb.eu-north-1.amazonaws.com
+
+$ curl -s http://ada910aa4f48c47eab442f34fc1c17dd-311432b4c3e04579.elb.eu-north-1.amazonaws.com/ | grep title
+<title>CampusDesk</title>
+
+$ curl -s http://ada910aa4f48c47eab442f34fc1c17dd-311432b4c3e04579.elb.eu-north-1.amazonaws.com/api/stats
+{"total":7,"open":7,"in_progress":0,"resolved":0,"urgent_open":2,"by_building":{"Admin Block":1,"Hostel A":2,"Science Block":2,"Library":2},"by_category":{"plumbing":1,"electrical":3,"furniture":1,"network":2},"avg_resolution_hours":null}
+
+$ curl -s http://ada910aa4f48c47eab442f34fc1c17dd-311432b4c3e04579.elb.eu-north-1.amazonaws.com/api/issues | head
+  #7 [urgent] Admin Block    AC not cooling in seminar hall
+  #6 [low   ] Library        Lab printer offline
+  #5 [medium] Hostel A       Corridor lights flickering
+  #4 [low   ] Science Block  Three broken chairs in tutorial room
