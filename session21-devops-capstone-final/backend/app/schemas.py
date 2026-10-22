@@ -6,7 +6,7 @@ just because a column was added.
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.models import Category, Priority, Status
 
@@ -34,6 +34,9 @@ class IssueCreate(BaseModel):
     category: Category = Category.OTHER
     priority: Priority = Priority.MEDIUM
     reported_by: str = Field(default="anonymous", max_length=100)
+    # Required, and validated as a real address by EmailStr rather than a
+    # hand-rolled regex.
+    reporter_email: EmailStr
 
 
 class IssuePatch(BaseModel):
@@ -61,6 +64,7 @@ class IssueOut(BaseModel):
     priority: Priority
     status: Status
     reported_by: str
+    reporter_email: str
     assigned_to: str | None
     created_at: datetime
     updated_at: datetime

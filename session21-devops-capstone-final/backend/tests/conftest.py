@@ -74,6 +74,7 @@ def sample_issue(client):
             "category": "electrical",
             "priority": "high",
             "reported_by": "student",
+            "reporter_email": "student@campus.edu",
         },
     )
     assert response.status_code == 201

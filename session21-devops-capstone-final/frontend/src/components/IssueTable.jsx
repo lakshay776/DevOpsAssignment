@@ -6,7 +6,7 @@ const when = (iso) =>
     day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
   });
 
-export default function IssueTable({ issues, onSelect, onStatus, onDelete }) {
+export default function IssueTable({ issues, admin, onSelect, onStatus, onDelete }) {
   if (issues.length === 0) {
     return <div className="banner">No issues match these filters.</div>;
   }
@@ -17,7 +17,7 @@ export default function IssueTable({ issues, onSelect, onStatus, onDelete }) {
         <thead>
           <tr>
             <th>#</th><th>Title</th><th>Location</th><th>Category</th>
-            <th>Priority</th><th>Status</th><th>Reported</th><th></th>
+            <th>Priority</th><th>Status</th><th>Reported</th>{admin && <th></th>}
           </tr>
         </thead>
         <tbody>
@@ -32,14 +32,16 @@ export default function IssueTable({ issues, onSelect, onStatus, onDelete }) {
               <td><span className={`badge p-${i.priority}`}>{i.priority}</span></td>
               <td><span className={`pill s-${i.status}`}>{i.status.replace("_", " ")}</span></td>
               <td className="muted">{when(i.created_at)}</td>
-              <td className="row-actions">
-                <button className="btn small" onClick={() => onStatus(i.id, NEXT[i.status])}>
-                  {NEXT_LABEL[i.status]}
-                </button>
-                <button className="btn small danger" onClick={() => onDelete(i.id)}>
-                  Delete
-                </button>
-              </td>
+              {admin && (
+                <td className="row-actions">
+                  <button className="btn small" onClick={() => onStatus(i.id, NEXT[i.status])}>
+                    {NEXT_LABEL[i.status]}
+                  </button>
+                  <button className="btn small danger" onClick={() => onDelete(i.id)}>
+                    Delete
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

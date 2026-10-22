@@ -6,6 +6,7 @@ import Filters from "./components/Filters.jsx";
 import IssueTable from "./components/IssueTable.jsx";
 import IssueDetail from "./components/IssueDetail.jsx";
 import NewIssueModal from "./components/NewIssueModal.jsx";
+import AdminGate from "./components/AdminGate.jsx";
 
 export default function App() {
   const [issues, setIssues] = useState([]);
@@ -13,6 +14,8 @@ export default function App() {
   const [filters, setFilters] = useState({ status: "", priority: "", category: "", building: "" });
   const [selected, setSelected] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  // Student view by default; admin unlocks the staff controls.
+  const [admin, setAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -73,11 +76,17 @@ export default function App() {
         <header className="header">
           <div>
             <h1>Facility Issues</h1>
-            <p className="subtitle">Report and track campus maintenance</p>
+            <p className="subtitle">
+              Report and track campus maintenance
+              {admin && <span className="mode-tag">admin</span>}
+            </p>
           </div>
-          <button className="btn primary" onClick={() => setShowModal(true)}>
-            + Report an issue
-          </button>
+          <div className="header-actions">
+            <AdminGate admin={admin} onChange={setAdmin} />
+            <button className="btn primary" onClick={() => setShowModal(true)}>
+              + Report an issue
+            </button>
+          </div>
         </header>
 
         {error && (
@@ -95,6 +104,7 @@ export default function App() {
         ) : (
           <IssueTable
             issues={issues}
+            admin={admin}
             onSelect={openDetail}
             onStatus={handleStatus}
             onDelete={handleDelete}
@@ -105,6 +115,7 @@ export default function App() {
       {selected && (
         <IssueDetail
           issue={selected}
+          admin={admin}
           onClose={() => setSelected(null)}
           onNote={handleNote}
           onStatus={handleStatus}

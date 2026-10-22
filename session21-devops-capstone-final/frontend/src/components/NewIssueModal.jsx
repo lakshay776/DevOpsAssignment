@@ -2,7 +2,7 @@ import { useState } from "react";
 
 const BLANK = {
   title: "", description: "", building: "", room: "",
-  category: "other", priority: "medium", reported_by: "",
+  category: "other", priority: "medium", reported_by: "", reporter_email: "",
 };
 
 export default function NewIssueModal({ onClose, onSubmit }) {
@@ -74,11 +74,20 @@ export default function NewIssueModal({ onClose, onSubmit }) {
             </label>
           </div>
 
-          <label>
-            Your name
-            <input value={form.reported_by} onChange={set("reported_by")}
-              placeholder="Optional" />
-          </label>
+          <div className="row">
+            <label>
+              Your name
+              <input value={form.reported_by} onChange={set("reported_by")}
+                placeholder="Optional" />
+            </label>
+            <label>
+              Your email <span className="req">required</span>
+              {/* type=email so the browser validates before the request,
+                  and the backend validates again with EmailStr. */}
+              <input type="email" required value={form.reporter_email}
+                onChange={set("reporter_email")} placeholder="you@campus.edu" />
+            </label>
+          </div>
 
           <label>
             Description

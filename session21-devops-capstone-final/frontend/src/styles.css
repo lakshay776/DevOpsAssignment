@@ -206,3 +206,29 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
   .modal .row { grid-template-columns: 1fr; }
   .header { flex-direction: column; }
 }
+
+/* -------------------------------------------------- admin gate / email */
+.header-actions { display: flex; align-items: center; gap: 10px; }
+
+.admin-gate { display: flex; align-items: center; gap: 6px; position: relative; }
+.admin-gate input { width: 150px; }
+.admin-gate input.bad { outline: 2px solid var(--urgent); outline-offset: -1px; }
+.gate-error {
+  position: absolute; top: 100%; left: 0; margin-top: 4px;
+  font-size: 11px; color: #ff8080; white-space: nowrap;
+}
+
+.mode-tag {
+  display: inline-block; margin-left: 8px; padding: 2px 8px;
+  border-radius: 999px; background: var(--accent); color: #fff;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; vertical-align: middle;
+}
+
+.req {
+  color: var(--urgent); font-size: 10px; text-transform: uppercase;
+  letter-spacing: .05em; margin-left: 4px;
+}
+
+.email { font-size: 12px; word-break: break-all; }
+.small-note { font-size: 12px; font-style: italic; margin: 0; }

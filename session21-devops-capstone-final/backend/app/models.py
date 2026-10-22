@@ -72,6 +72,10 @@ class Issue(Base):
     )
 
     reported_by: Mapped[str] = mapped_column(String(100), default="anonymous", nullable=False)
+    # Required from the reporter so maintenance can follow up. Existing rows
+    # predate the column, so the migration backfills them rather than failing
+    # on a NOT NULL constraint.
+    reporter_email: Mapped[str] = mapped_column(String(200), nullable=False)
     assigned_to: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)

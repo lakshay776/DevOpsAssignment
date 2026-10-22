@@ -27,7 +27,11 @@ def test_metrics_exposes_prometheus_text(client):
 def test_create_issue_returns_201_and_defaults(client):
     r = client.post(
         "/api/issues",
-        json={"title": "Tap leaking in washroom", "building": "Library"},
+        json={
+            "title": "Tap leaking in washroom",
+            "building": "Library",
+            "reporter_email": "a@campus.edu",
+        },
     )
     assert r.status_code == 201
     body = r.json()
@@ -39,13 +43,36 @@ def test_create_issue_returns_201_and_defaults(client):
 
 
 def test_create_rejects_a_too_short_title(client):
-    r = client.post("/api/issues", json={"title": "ac", "building": "Library"})
+    r = client.post("/api/issues", json={"title": "ac", "building": "Library", "reporter_email": "a@campus.edu"})
     assert r.status_code == 422
 
 
 def test_create_rejects_a_missing_building(client):
-    r = client.post("/api/issues", json={"title": "Broken chair in room 12"})
+    r = client.post("/api/issues", json={"title": "Broken chair in room 12", "reporter_email": "a@campus.edu"})
     assert r.status_code == 422
+
+
+def test_create_requires_an_email(client):
+    """The reporter's address is mandatory - maintenance has to be able to
+    follow up on what they find."""
+    r = client.post("/api/issues", json={"title": "Window will not close", "building": "Library"})
+    assert r.status_code == 422
+    assert any("reporter_email" in str(e["loc"]) for e in r.json()["detail"])
+
+
+def test_create_rejects_a_malformed_email(client):
+    r = client.post(
+        "/api/issues",
+        json={"title": "Window will not close", "building": "Library",
+              "reporter_email": "not-an-address"},
+    )
+    assert r.status_code == 422
+
+
+def test_created_issue_returns_the_email(client, sample_issue):
+    assert sample_issue["reporter_email"] == "student@campus.edu"
+    fetched = client.get(f"/api/issues/{sample_issue['id']}").json()
+    assert fetched["reporter_email"] == "student@campus.edu"
 
 
 # -------------------------------------------------------------------- read
@@ -57,7 +84,7 @@ def test_list_returns_created_issues(client, sample_issue):
 
 
 def test_list_filters_by_status_and_building(client, sample_issue):
-    client.post("/api/issues", json={"title": "Wifi dropping out", "building": "Hostel A"})
+    client.post("/api/issues", json={"title": "Wifi dropping out", "building": "Hostel A", "reporter_email": "b@campus.edu"})
 
     assert len(client.get("/api/issues").json()) == 2
     assert len(client.get("/api/issues?building=Hostel A").json()) == 1
@@ -152,7 +179,12 @@ def test_stats_on_an_empty_database(client):
 def test_stats_counts_and_groups(client, sample_issue):
     client.post(
         "/api/issues",
-        json={"title": "Fire alarm beeping", "building": "Hostel A", "priority": "urgent"},
+        json={
+            "title": "Fire alarm beeping",
+            "building": "Hostel A",
+            "priority": "urgent",
+            "reporter_email": "c@campus.edu",
+        },
     )
     client.put(f"/api/issues/{sample_issue['id']}", json={"status": "resolved"})
 

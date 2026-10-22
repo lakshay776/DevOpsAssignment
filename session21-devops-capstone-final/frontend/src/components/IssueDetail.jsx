@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function IssueDetail({ issue, onClose, onNote, onStatus }) {
+export default function IssueDetail({ issue, admin, onClose, onNote, onStatus }) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -32,23 +32,26 @@ export default function IssueDetail({ issue, onClose, onNote, onStatus }) {
         <div><dt>Priority</dt><dd><span className={`badge p-${issue.priority}`}>{issue.priority}</span></dd></div>
         <div><dt>Status</dt><dd><span className={`pill s-${issue.status}`}>{issue.status.replace("_", " ")}</span></dd></div>
         <div><dt>Reported by</dt><dd>{issue.reported_by}</dd></div>
+        <div><dt>Contact</dt><dd className="email">{issue.reporter_email}</dd></div>
         {issue.assigned_to && <div><dt>Assigned</dt><dd>{issue.assigned_to}</dd></div>}
       </dl>
 
       {issue.description && <p className="description">{issue.description}</p>}
 
-      <div className="status-actions">
-        {["open", "in_progress", "resolved"].map((s) => (
-          <button
-            key={s}
-            className={`btn small ${issue.status === s ? "primary" : ""}`}
-            onClick={() => onStatus(issue.id, s)}
-            disabled={issue.status === s}
-          >
-            {s.replace("_", " ")}
-          </button>
-        ))}
-      </div>
+      {admin && (
+        <div className="status-actions">
+          {["open", "in_progress", "resolved"].map((s) => (
+            <button
+              key={s}
+              className={`btn small ${issue.status === s ? "primary" : ""}`}
+              onClick={() => onStatus(issue.id, s)}
+              disabled={issue.status === s}
+            >
+              {s.replace("_", " ")}
+            </button>
+          ))}
+        </div>
+      )}
 
       <h4>Worklog</h4>
       {issue.updates?.length ? (
@@ -66,16 +69,20 @@ export default function IssueDetail({ issue, onClose, onNote, onStatus }) {
         <p className="muted">Nothing logged yet.</p>
       )}
 
-      <form className="note-form" onSubmit={submit}>
-        <input
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="Add a note…"
-        />
-        <button className="btn primary" disabled={busy || !note.trim()}>
-          {busy ? "Saving…" : "Add"}
-        </button>
-      </form>
+      {admin ? (
+        <form className="note-form" onSubmit={submit}>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Add a note…"
+          />
+          <button className="btn primary" disabled={busy || !note.trim()}>
+            {busy ? "Saving…" : "Add"}
+          </button>
+        </form>
+      ) : (
+        <p className="muted small-note">Unlock admin mode to update this issue.</p>
+      )}
     </aside>
   );
 }
