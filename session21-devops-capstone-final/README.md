@@ -240,7 +240,15 @@ Alembic then fails on a refused connection.
 
 ## M5 — CI/CD pipeline
 
-`.github/workflows/ci-cd.yml`, three jobs:
+The pipeline runs from **`.github/workflows/campusdesk-ci.yml` at the repository root**, not
+from this folder. GitHub only discovers workflows in `<repo>/.github/workflows`, so a workflow
+nested inside a subdirectory is never triggered. The root copy reaches this folder through
+`working-directory` on the script steps and a Docker build `context` on the image steps — the
+standard monorepo arrangement — and a `paths:` filter keeps it from firing when unrelated
+coursework changes. A copy also sits in this folder's `.github/workflows/` as part of the
+module's deliverables.
+
+Three jobs:
 
 1. **test** — pytest (fails the build on any test failure), then the frontend build.
 2. **build-scan-push** — matrix over backend and frontend. Each image is built and **loaded
@@ -495,11 +503,10 @@ node group was scaled from 2 to 3.
 
 ## What was not run
 
-- **The GitHub Actions pipeline has never executed.** GitHub only runs workflows found at a
-  repository *root*, and this folder sits inside the coursework repo, so
-  `session21-devops-capstone-final/.github/` is never triggered. Every step it defines (pytest,
-  frontend build, both image builds, both Trivy scans, `helm upgrade --install`) was run by hand
-  and is evidenced above. Pushing this folder as its own repository would make it run.
+- **The `deploy` job skips itself.** It is guarded on a `KUBE_CONFIG_DATA` secret, which is not
+  set, because the EKS cluster it would deploy to was destroyed to avoid running costs. The job
+  reports the skip rather than failing. Everything before it — pytest, the frontend build, both
+  image builds, both Trivy scans, the GHCR push — runs for real.
 - **No HPA scale-up under load was demonstrated.** The HPA was deployed and reading CPU
   (`cpu: 6%/60%`), but no load test was run against the cluster before teardown.
 - **The AWS load balancer was not created by Terraform.** It was provisioned by the Kubernetes

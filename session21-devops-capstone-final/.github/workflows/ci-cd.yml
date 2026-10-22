@@ -1,3 +1,10 @@
+# Reference copy, kept here as part of this module's deliverables.
+#
+# GitHub only discovers workflows in <repo>/.github/workflows, so this nested
+# copy is never triggered. The pipeline that actually runs is the equivalent
+# at the repository root, .github/workflows/campusdesk-ci.yml, which builds
+# this folder through working-directory and Docker build contexts.
+
 name: CI/CD
 
 on:

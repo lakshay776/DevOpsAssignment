@@ -1,0 +1,166 @@
+# CampusDesk capstone pipeline.
+#
+# This lives at the repository root because GitHub only discovers workflows
+# in <repo>/.github/workflows. The capstone itself is a subdirectory, so
+# every job points at it through `working-directory` or a Docker build
+# `context` - the standard monorepo arrangement. A copy of this pipeline
+# also sits in session21-devops-capstone-final/.github/workflows/ as part of
+# that module's deliverables; this root copy is the one GitHub executes.
+name: CampusDesk CI/CD
+
+on:
+  push:
+    branches: [main]
+    # Only run when the capstone actually changes - the rest of the
+    # coursework has nothing to build.
+    paths:
+      - "session21-devops-capstone-final/**"
+      - ".github/workflows/campusdesk-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "session21-devops-capstone-final/**"
+  # So the pipeline can be demonstrated on request, not only on a push.
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  PROJECT_DIR: session21-devops-capstone-final
+
+jobs:
+  # ---------------------------------------------------------------- test
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: session21-devops-capstone-final/backend/requirements.txt
+
+      - name: Install backend dependencies
+        working-directory: session21-devops-capstone-final/backend
+        run: pip install -r requirements.txt
+
+      - name: Run pytest
+        working-directory: session21-devops-capstone-final/backend
+        # Tests use SQLite, so no database service is needed. A failure here
+        # fails the job and blocks everything downstream.
+        run: pytest -v
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build frontend
+        working-directory: session21-devops-capstone-final/frontend
+        run: |
+          npm install
+          npm run build
+
+  # ------------------------------------------------- build, scan, publish
+  build-scan-push:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      # Both images are scanned even if one fails, so a single run reports
+      # every finding rather than stopping at the first.
+      fail-fast: false
+      matrix:
+        service: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lowercase the image name
+        id: img
+        # GHCR rejects uppercase in image names and GitHub usernames can
+        # contain it.
+        run: echo "name=${GITHUB_REPOSITORY,,}/campusdesk-${{ matrix.service }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image (loaded locally, not pushed)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./session21-devops-capstone-final/${{ matrix.service }}
+          # Loaded into the local daemon so Trivy can scan it *before*
+          # anything reaches the registry.
+          load: true
+          tags: ${{ steps.img.outputs.name }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy scan (HIGH/CRITICAL fails the build)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.img.outputs.name }}:${{ github.sha }}
+          format: table
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./session21-devops-capstone-final/${{ matrix.service }}
+          push: true
+          # Commit SHA, never :latest, so every deployment traces to the
+          # exact source that produced it.
+          tags: ${{ env.REGISTRY }}/${{ steps.img.outputs.name }}:${{ github.sha }}
+          cache-from: type=gha
+
+  # -------------------------------------------------------------- deploy
+  deploy:
+    needs: build-scan-push
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip when no cluster is configured
+        id: guard
+        run: |
+          if [ -z "${{ secrets.KUBE_CONFIG_DATA }}" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "KUBE_CONFIG_DATA is not set; skipping the cluster deploy."
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: azure/setup-helm@v4
+        if: steps.guard.outputs.run == 'true'
+
+      - name: Configure kubectl
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "${{ secrets.KUBE_CONFIG_DATA }}" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Helm upgrade --install
+        if: steps.guard.outputs.run == 'true'
+        working-directory: session21-devops-capstone-final
+        run: |
+          REPO="${GITHUB_REPOSITORY,,}"
+          helm upgrade --install campusdesk ./helm/campusdesk \
+            --namespace campusdesk --create-namespace \
+            --set backend.image.repository=${REGISTRY}/${REPO}/campusdesk-backend \
+            --set backend.image.tag=${{ github.sha }} \
+            --set frontend.image.repository=${REGISTRY}/${REPO}/campusdesk-frontend \
+            --set frontend.image.tag=${{ github.sha }} \
+            --set postgres.persistence.enabled=false \
+            --wait --timeout 8m
