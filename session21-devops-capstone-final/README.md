@@ -13,6 +13,11 @@ Helm chart, Prometheus and Grafana, and three troubleshooting labs.
 Docker · GitHub Actions · Trivy · Terraform · EKS · Helm · Prometheus · Grafana
 
 **Environment:** macOS (Apple Silicon), Docker Desktop, Terraform 1.16.6, AWS `eu-north-1`.
+
+**Screenshots:** the browser shots in `screenshots/` were captured by driving a real Chromium
+against the running app with Playwright. The terminal shots are the exact output of the exact
+command, typeset into an image — the text is real, only the rendering is automated. Nothing
+is mocked or hand-edited.
 The EKS cluster was created, deployed to, exercised, and destroyed — see
 [M7](#m7--terraform-aws-infrastructure) and [M8](#m8--kubernetes--helm).
 
@@ -126,7 +131,35 @@ malformed address is rejected with 422.
 ### Frontend
 
 Sidebar, KPI cards, filter bar, issue table with priority badges and status pills, a detail
-panel with the worklog and the reporter's contact address, and a report modal. Responsive down to phone width, with loading and
+panel with the worklog and the reporter's contact address, and a report modal.
+
+![dashboard, student mode](screenshots/01-dashboard-student.png)
+
+Student mode: browse and filter, file an issue, but no Start/Resolve/Delete column.
+
+![report modal](screenshots/02-report-modal.png)
+
+The report form, with the email field marked required.
+
+![admin gate rejecting a wrong password](screenshots/03-admin-gate-wrong.png)
+
+![dashboard, admin mode](screenshots/04-dashboard-admin.png)
+
+Admin mode unlocked: the `admin` tag appears and the actions column with it.
+
+![issue detail and worklog](screenshots/05-issue-detail-worklog.png)
+
+The detail panel, showing the reporter's contact address and a worklog note.
+
+![filtered to urgent](screenshots/06-filter-urgent.png)
+
+![swagger](screenshots/07-swagger-api.png)
+
+All eleven endpoints, from the generated OpenAPI schema.
+
+![responsive at phone width](screenshots/08-responsive-mobile.png)
+
+At 414px the sidebar collapses and the KPI cards reflow to two columns. Responsive down to phone width, with loading and
 backend-error states. All API calls are relative — nginx and the Ingress handle routing, so no
 hostname is ever baked into the bundle.
 
@@ -141,6 +174,8 @@ $ pytest
 ........................                                   [100%]
 24 passed, 1 warning in 0.18s
 ```
+
+![pytest -v, 24 passing](screenshots/09-pytest-24-passing.png)
 
 Coverage: probes, create with defaults, validation rejections (422) including a missing and a
 malformed reporter email, list, filtering by status
@@ -169,6 +204,8 @@ One folder per session in a public repository, this one self-contained. `.gitign
 `__pycache__/`, `node_modules/`, `.terraform/`, `*.tfstate`, `*.tfvars` (while keeping
 `*.tfvars.example`) and `.env`, so neither build output nor credentials are ever committed.
 
+![git history](screenshots/12-git-history.png)
+
 ---
 
 ## M4 — Docker
@@ -196,6 +233,8 @@ depends_on:
 
 `depends_on` alone waits only for the *container*, not for Postgres to accept connections, and
 Alembic then fails on a refused connection.
+
+![compose stack running](screenshots/10-docker-compose-running.png)
 
 ---
 
@@ -228,6 +267,8 @@ a report.
 The frontend's 17 were all Alpine OS packages (`curl`, `libcurl`, `libexpat`, `pcre2`, `tiff`),
 cleared by rebuilding with a freshly pulled base so `apk upgrade` saw a current index. The
 backend's five took real digging — see [bug 4](#4-trivy-reported-cves-that-pip-list-said-were-already-fixed).
+
+![trivy clean on both images](screenshots/13-trivy-clean.png)
 
 ---
 
@@ -265,6 +306,10 @@ And destroyed cleanly afterwards:
 ```text
 Destroy complete! Resources: 15 destroyed.
 ```
+
+![terraform apply and cluster](screenshots/14-terraform-apply-eks.png)
+
+![terraform destroy](screenshots/15-terraform-destroy.png)
 
 Full output in [`evidence/m7-terraform-eks.txt`](evidence/m7-terraform-eks.txt) and
 [`evidence/m7-destroy.txt`](evidence/m7-destroy.txt).
@@ -319,6 +364,11 @@ Chart details worth noting:
 
 Full output in [`evidence/m8-kubernetes-helm.txt`](evidence/m8-kubernetes-helm.txt).
 
+![kubectl and helm on EKS](screenshots/16-kubectl-helm-eks.png)
+
+One capture covering `helm list`, `kubectl get all` with every pod `Running`, the three
+ClusterIP services, and the HPA reading CPU.
+
 ---
 
 ## M9 — Observability
@@ -354,6 +404,10 @@ Grafana served a seven-panel dashboard (`monitoring/grafana-dashboard.json`): op
 priority, report rate by category, HTTP request rate, p95 latency, and three stat tiles.
 
 Full output in [`evidence/m9-monitoring.txt`](evidence/m9-monitoring.txt).
+
+![backend metrics endpoint](screenshots/11-backend-metrics.png)
+
+![prometheus targets and grafana](screenshots/17-prometheus-grafana.png)
 
 ---
 
