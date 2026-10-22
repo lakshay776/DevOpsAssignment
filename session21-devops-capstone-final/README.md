@@ -260,6 +260,38 @@ Three jobs:
 The ordering matters: scanning happens before the push, so a vulnerable image never reaches the
 registry at all.
 
+### The pipeline run
+
+[Run #2](https://github.com/lakshay776/DevOpsAssignment/actions/runs/39721769681) — all four
+jobs green in 2m 12s.
+
+![github actions, all jobs green](screenshots/18-github-actions-green.png)
+
+![per-image build summaries](screenshots/19-ci-build-summaries.png)
+
+Both images published to GHCR, tagged with the commit SHA rather than `latest`:
+
+```text
+ghcr.io/lakshay776/devopsassignment/campusdesk-backend
+  tags: ["3de50843775024bb33b11dbf236a29aa1195aad8"]
+
+ghcr.io/lakshay776/devopsassignment/campusdesk-frontend
+  tags: ["3de50843775024bb33b11dbf236a29aa1195aad8"]
+```
+
+Both are public and anonymously pullable.
+
+The first attempt failed, and the reason is worth recording: both matrix legs died at
+`Set up job`, before a single step ran. GitHub resolves every `uses:` reference during setup,
+and `aquasecurity/trivy-action@0.28.0` does not exist — that action tags its releases with a
+`v` prefix. Pinning `v0.36.0` fixed it. A failure at `Set up job` almost always means a bad
+action reference rather than anything wrong with your own steps.
+
+The run also raises deprecation warnings about Node.js 20 in the GitHub-provided actions, and a
+notice that `ubuntu-latest` migrates to Ubuntu 26. Both are upstream notices, not failures.
+
+![ci annotations](screenshots/20-ci-annotations.png)
+
 ---
 
 ## M6 — DevSecOps (Trivy)
@@ -277,6 +309,9 @@ cleared by rebuilding with a freshly pulled base so `apk upgrade` saw a current 
 backend's five took real digging — see [bug 4](#4-trivy-reported-cves-that-pip-list-said-were-already-fixed).
 
 ![trivy clean on both images](screenshots/13-trivy-clean.png)
+
+The gate also passed in CI, on base images GitHub's runner pulled fresh — so the clean result
+is not an artefact of a warm local cache.
 
 ---
 
@@ -503,10 +538,12 @@ node group was scaled from 2 to 3.
 
 ## What was not run
 
-- **The `deploy` job skips itself.** It is guarded on a `KUBE_CONFIG_DATA` secret, which is not
-  set, because the EKS cluster it would deploy to was destroyed to avoid running costs. The job
-  reports the skip rather than failing. Everything before it — pytest, the frontend build, both
-  image builds, both Trivy scans, the GHCR push — runs for real.
+- **The `deploy` job reports success without deploying.** It is guarded on a
+  `KUBE_CONFIG_DATA` secret, which is not set, because the EKS cluster it would deploy to was
+  destroyed to avoid running costs. The job runs, finds no cluster configured, logs that and
+  exits green. Everything before it — pytest, the frontend build, both image builds, both Trivy
+  scans and the GHCR push — did real work in
+  [run #2](https://github.com/lakshay776/DevOpsAssignment/actions/runs/39721769681).
 - **No HPA scale-up under load was demonstrated.** The HPA was deployed and reading CPU
   (`cpu: 6%/60%`), but no load test was run against the cluster before teardown.
 - **The AWS load balancer was not created by Terraform.** It was provisioned by the Kubernetes
