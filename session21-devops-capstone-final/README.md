@@ -14,6 +14,10 @@ Docker · GitHub Actions · Trivy · Terraform · EKS · Helm · Prometheus · G
 
 **Environment:** macOS (Apple Silicon), Docker Desktop, Terraform 1.16.6, AWS `eu-north-1`.
 
+**Walkthrough video (6 min, narrated):**
+[Google Drive](https://drive.google.com/file/d/13UvjRd6ZsZSN7Op9oLHVne2TJVaDK4WT/view?usp=sharing)
+· a copy is also committed here as [`CampusDesk-Walkthrough.mp4`](CampusDesk-Walkthrough.mp4).
+
 **Screenshots:** the browser shots in `screenshots/` were captured by driving a real Chromium
 against the running app with Playwright. The terminal shots are the exact output of the exact
 command, typeset into an image — the text is real, only the rendering is automated. Nothing
